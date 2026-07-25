@@ -1,0 +1,515 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-heading: var(--font-heading);
+  --font-mono: var(--font-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+/*
+ * Mathematics Blog palette (from BLOG_SYSTEM_V1_SPEC.md).
+ * Light-only, timeless. No gradients, no glassmorphism.
+ */
+:root {
+  --radius: 0.5rem;
+
+  --background: #fafbfd; /* App background */
+  --foreground: #111827; /* Primary text */
+
+  --card: #ffffff;
+  --card-foreground: #111827;
+
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+
+  --primary: #2563eb; /* Primary blue */
+  --primary-foreground: #ffffff;
+  --primary-hover: #1d4ed8; /* Hover blue (deeper) */
+
+  --secondary: #f3f4f6;
+  --secondary-foreground: #111827;
+
+  --muted: #f9fafb;
+  --muted-foreground: #6b7280; /* Secondary text */
+
+  --accent: #dbeafe; /* Light blue */
+  --accent-foreground: #1d4ed8;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --border: #e5e7eb; /* Borders */
+  --input: #e5e7eb;
+  --ring: #2563eb;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eff6ff;
+  --sidebar-accent-foreground: #1d4ed8;
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #2563eb;
+
+  /* Fonts (defined by next/font in app/layout.tsx) */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Article-body serif (Azerbaijani-safe) — used by the LaTeX renderer. */
+  --font-heading: var(--font-merriweather), ui-serif, Georgia, Cambria,
+    "Times New Roman", Times, serif;
+  /* Elegant display serif for UI titles; Merriweather is the fallback so any
+     Azerbaijani glyph Playfair lacks degrades gracefully. */
+  --font-display: var(--font-playfair), var(--font-merriweather), ui-serif,
+    Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+@theme inline {
+  --font-display: var(--font-display);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    scroll-behavior: smooth;
+    scroll-padding-top: 5.5rem; /* clear the sticky navbar on anchor jumps */
+  }
+  body {
+    @apply bg-background text-foreground;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* UI headings use the elegant display serif. */
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+  /* The typeset article keeps Merriweather throughout (compiled-LaTeX feel). */
+  .latex-article,
+  .latex-article :is(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--font-heading);
+    letter-spacing: normal;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Subtle, tasteful motion. Hover + a single fade/rise on first paint only.
+ * Respects prefers-reduced-motion.
+ * ------------------------------------------------------------------------- */
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-rise {
+  opacity: 0;
+  animation: fade-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Stagger for card grids (data-index set inline). */
+.animate-fade-rise[data-index="0"] { animation-delay: 0ms; }
+.animate-fade-rise[data-index="1"] { animation-delay: 70ms; }
+.animate-fade-rise[data-index="2"] { animation-delay: 140ms; }
+.animate-fade-rise[data-index="3"] { animation-delay: 210ms; }
+.animate-fade-rise[data-index="4"] { animation-delay: 280ms; }
+.animate-fade-rise[data-index="5"] { animation-delay: 350ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .animate-fade-rise {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Hero: very light blue surface with an extremely subtle mathematical-symbol
+ * texture. No gradients — a flat tint plus a low-opacity glyph pattern.
+ * ------------------------------------------------------------------------- */
+.hero-surface {
+  position: relative;
+  background-color: #eef4ff;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  isolation: isolate;
+}
+.hero-pattern {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  font-family: var(--font-heading);
+  color: #2563eb;
+  opacity: 0.05;
+  user-select: none;
+}
+.hero-pattern span {
+  position: absolute;
+  line-height: 1;
+  font-weight: 700;
+}
+
+/* Premium article card: thin border, soft shadow, gentle lift on hover. */
+.article-card {
+  border-radius: 18px;
+  transition:
+    transform 250ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 250ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 250ms ease;
+}
+.article-card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 12px 28px -8px rgba(37, 99, 235, 0.16);
+  border-color: color-mix(in oklch, var(--primary) 35%, var(--border));
+}
+
+/* ---------------------------------------------------------------------------
+ * Article list rows: each post sits on its own whisper-soft background tint so
+ * adjacent articles read as distinct panels. Light-only, no gradients — a flat
+ * near-white wash cycling through six hues (set by `data-tint` on the row).
+ * Hover deepens within the same hue.
+ * ------------------------------------------------------------------------- */
+.article-row {
+  background-color: var(--row-rest);
+}
+.article-row:hover,
+.article-row:focus-visible {
+  background-color: var(--row-hover);
+}
+.article-row[data-tint="0"] { --row-rest: #f3f7fe; --row-hover: #e9f1fd; } /* blue   */
+.article-row[data-tint="1"] { --row-rest: #f7f5fd; --row-hover: #eeeafc; } /* violet */
+.article-row[data-tint="2"] { --row-rest: #eff9f7; --row-hover: #e2f4f1; } /* teal   */
+.article-row[data-tint="3"] { --row-rest: #fefaf0; --row-hover: #fbf2df; } /* amber  */
+.article-row[data-tint="4"] { --row-rest: #fdf5f6; --row-hover: #fbe9ec; } /* rose   */
+.article-row[data-tint="5"] { --row-rest: #f2f9f2; --row-hover: #e7f4e8; } /* green  */
+
+/* ---------------------------------------------------------------------------
+ * Article content: mathematics-friendly reading surface.
+ * KaTeX display equations scroll horizontally instead of breaking the layout.
+ * ------------------------------------------------------------------------- */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-top: 0.25rem;
+  padding-bottom: 0.5rem;
+}
+.katex {
+  font-size: 1.08em;
+}
+
+/* Code blocks: clean, light, academic (overrides prose's dark default). */
+.prose pre {
+  background-color: #f9fafb;
+  color: #111827;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.prose :not(pre) > code {
+  background-color: #f3f4f6;
+  padding: 0.15em 0.4em;
+  border-radius: 0.35rem;
+  font-weight: 500;
+  font-size: 0.9em;
+}
+.prose :not(pre) > code::before,
+.prose :not(pre) > code::after {
+  content: none; /* remove prose backtick pseudo-elements */
+}
+
+/* highlight.js — GitHub light theme (minimal token set). */
+.hljs-comment,
+.hljs-quote { color: #6a737d; font-style: italic; }
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-type { color: #d73a49; }
+.hljs-literal,
+.hljs-number,
+.hljs-tag .hljs-attr { color: #005cc5; }
+.hljs-string,
+.hljs-doctag,
+.hljs-regexp { color: #032f62; }
+.hljs-title,
+.hljs-section,
+.hljs-selector-id,
+.hljs-function .hljs-title { color: #6f42c1; }
+.hljs-attribute,
+.hljs-name,
+.hljs-attr { color: #22863a; }
+.hljs-symbol,
+.hljs-meta { color: #e36209; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+/* ===========================================================================
+ * LaTeX-typeset article (rendered by lib/latex/render.ts). Aims for the clean,
+ * scholarly feel of a compiled LaTeX article — serif body, centered title,
+ * numbered sections/equations, theorem + proof blocks — inside the site chrome.
+ * ========================================================================= */
+.latex-article {
+  font-family: var(--font-heading);
+  color: #1a1a1a;
+  font-size: 1.05rem;
+  line-height: 1.8;
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
+  overflow-wrap: break-word;
+}
+.latex-article p {
+  margin: 0 0 0.9rem;
+}
+
+/* Title block */
+.latex-titleblock {
+  text-align: center;
+  margin: 0 0 2.5rem;
+}
+.latex-title {
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.85rem;
+}
+.latex-author {
+  font-size: 1.1rem;
+  margin: 0.2rem 0;
+}
+.latex-date {
+  color: #4b5563;
+  margin-top: 0.2rem;
+}
+
+/* Abstract */
+.latex-abstract {
+  margin: 0 auto 2rem;
+  max-width: 88%;
+  font-size: 0.97rem;
+  color: #374151;
+  text-align: justify;
+}
+.latex-abstract-title {
+  text-align: center;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+/* Sections */
+.latex-section {
+  font-size: 1.45rem;
+  font-weight: 700;
+  margin: 2rem 0 0.7rem;
+  line-height: 1.3;
+}
+.latex-subsection {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.5rem;
+}
+.latex-subsubsection {
+  font-size: 1.06rem;
+  font-weight: 700;
+  margin: 1.25rem 0 0.4rem;
+}
+.latex-secnum {
+  margin-right: 0.5rem;
+}
+
+/* Equations */
+.latex-eq {
+  position: relative;
+  margin: 1.25rem 0;
+  text-align: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.latex-eq .katex-display {
+  margin: 0;
+}
+.latex-eq-num {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #374151;
+}
+
+/* Theorems & proofs */
+.latex-theorem {
+  margin: 1.25rem 0;
+}
+.latex-thm-head {
+  font-weight: 700;
+}
+.latex-thm-body {
+  font-style: italic;
+  display: inline;
+}
+.latex-thm-body p {
+  display: inline;
+}
+.latex-proof {
+  margin: 1rem 0;
+}
+.latex-proof-head {
+  font-style: italic;
+}
+.latex-proof-body {
+  display: inline;
+}
+.latex-qed {
+  float: right;
+  font-style: normal;
+}
+
+/* Lists */
+.latex-list {
+  margin: 0.75rem 0 0.75rem 1.75rem;
+}
+.latex-article ul.latex-list {
+  list-style: disc;
+}
+.latex-article ol.latex-list {
+  list-style: decimal;
+}
+.latex-list li {
+  margin: 0.35rem 0;
+  text-align: left;
+}
+.latex-list li p {
+  margin: 0;
+  display: inline;
+}
+
+/* Tables & figures */
+.latex-table-wrap {
+  overflow-x: auto;
+  margin: 1.25rem 0;
+}
+.latex-table {
+  border-collapse: collapse;
+  margin: 0 auto;
+}
+.latex-table td {
+  border: 1px solid #d1d5db;
+  padding: 0.4rem 0.85rem;
+}
+.latex-figure {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+.latex-figure img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.25rem;
+}
+.latex-figure figcaption {
+  color: #4b5563;
+  font-size: 0.92rem;
+  margin-top: 0.5rem;
+}
+.latex-fig-label {
+  font-weight: 600;
+}
+
+/* Misc */
+.latex-center {
+  text-align: center;
+}
+.latex-quote {
+  border-left: 3px solid var(--primary);
+  padding-left: 1rem;
+  color: #4b5563;
+  margin: 1rem 0;
+}
+.latex-verbatim {
+  background: #f9fafb;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  line-height: 1.6;
+  text-align: left;
+}
+.latex-article :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: #f3f4f6;
+  padding: 0.1em 0.35em;
+  border-radius: 0.3em;
+}
+.latex-sc {
+  font-variant: small-caps;
+}
+.latex-inline-img {
+  max-width: 100%;
+  height: auto;
+}
+.latex-error {
+  color: #dc2626;
+}
+.latex-fallback {
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
