@@ -135,6 +135,37 @@
   }
 }
 
+/* ===========================================================================
+ * App / exam interface (student dashboard + exam-taking). Uses the clean
+ * sans-serif for readability and fast scanning during long sessions — distinct
+ * from the marketing/blog display serif. KaTeX math keeps its own fonts.
+ * ========================================================================= */
+.app-ui,
+.app-ui :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-sans);
+  letter-spacing: normal;
+}
+/* Inline LaTeX (question prompts / answer choices) rendered by the LaTeX engine
+   should read as normal sans-serif text; only the math is KaTeX. */
+.app-ui .tex,
+.app-ui .tex p {
+  margin: 0;
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+/* ---------------------------------------------------------------------------
+ * Exam titles/headings use a bold, modern SANS-SERIF (Inter) — clean, strong,
+ * academic — instead of the marketing display serif. Applied via `.exam-title`
+ * on exam cards, the exam detail page, admin exam headings and the runner. The
+ * class selector overrides the base h1–h4 serif rule; math/LaTeX is unaffected.
+ * ------------------------------------------------------------------------- */
+.exam-title {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
 /* ---------------------------------------------------------------------------
  * Subtle, tasteful motion. Hover + a single fade/rise on first paint only.
  * Respects prefers-reduced-motion.

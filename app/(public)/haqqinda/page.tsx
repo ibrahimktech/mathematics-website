@@ -43,14 +43,26 @@ export default function AboutPage() {
 
       <div className="text-foreground/90 mt-6 space-y-4 leading-relaxed">
         <p>
-          Bu bloq riyaziyyatı sevənlər üçün nəzərdə tutulub. Burada olimpiada
-          məsələləri, zərif isbatlar, teoremlər və dərin riyazi ideyalar
-          Azərbaycan dilində paylaşılır.
+          Bu platforma riyaziyyatı ciddi öyrənmək istəyənlər üçün nəzərdə
+          tutulub. İki hissədən ibarətdir: pulsuz{" "}
+          <Link href="/bloq" className="text-primary font-medium hover:underline">
+            bloq
+          </Link>{" "}
+          — olimpiada məsələləri, isbatlar və riyazi ideyalar — və{" "}
+          <Link
+            href="/imtahanlar"
+            className="text-primary font-medium hover:underline"
+          >
+            imtahanlar
+          </Link>
+          , yəni özünü sınamaq və məsələ həlli bacarığını inkişaf etdirmək üçün
+          diqqətlə hazırlanmış məsələ toplusu.
         </p>
         <p>
-          Məqalələr LaTeX ilə yazılır və birbaşa saytda səliqəli, akademik
+          Bloq məqalələri LaTeX ilə yazılır və birbaşa saytda səliqəli, akademik
           formatda dərc olunur — düsturlar, teoremlər və sübutlar tam
-          oxunaqlılıqla.
+          oxunaqlılıqla. İmtahanlar isə öyrəndiklərini praktikada tətbiq etmək
+          üçündür.
         </p>
       </div>
 
@@ -81,22 +93,30 @@ export default function AboutPage() {
         ))}
       </div>
 
-      <div className="border-border bg-card mt-14 flex flex-col items-start justify-between gap-4 rounded-2xl border p-8 sm:flex-row sm:items-center">
+      <div className="border-border bg-card mt-14 flex flex-col items-start justify-between gap-5 rounded-2xl border p-8 sm:flex-row sm:items-center">
         <div>
           <h2 className="font-display text-foreground text-xl font-bold">
-            Oxumağa başla
+            Başlamağa hazırsan?
           </h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            Ən son məqalələrə göz at və kəşf etməyə başla.
+            İmtahanlarla özünü sına və ya pulsuz bloqu oxumağa başla.
           </p>
         </div>
-        <Link
-          href="/#articles"
-          className="bg-primary text-primary-foreground hover:bg-primary-hover inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all hover:-translate-y-0.5"
-        >
-          Məqalələrə bax
-          <ArrowRight className="size-4" />
-        </Link>
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <Link
+            href="/imtahanlar"
+            className="bg-primary text-primary-foreground hover:bg-primary-hover inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all hover:-translate-y-0.5"
+          >
+            İmtahanlara bax
+            <ArrowRight className="size-4" />
+          </Link>
+          <Link
+            href="/bloq#articles"
+            className="border-border text-foreground hover:border-primary/40 hover:text-primary inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold transition-colors"
+          >
+            Bloqu oxu
+          </Link>
+        </div>
       </div>
     </div>
   );

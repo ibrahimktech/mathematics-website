@@ -67,12 +67,79 @@ with `_` — underscore = Next private folder = 404).
 - **Graceful degradation:** data functions check `isSupabaseConfigured` and return
   `[]`/`null`, so `npm run build` succeeds with no credentials.
 
+## Platform (exams + manual purchases + student accounts)
+
+The project is **one brand with two halves**: the free blog and a paid-exam
+platform. Everything exam-related is **database-driven** (admin-created); nothing
+is hardcoded. Routing (all Azerbaijani):
+- `/` — platform homepage. `/bloq` — blog landing (old `/`; article URLs unchanged).
+- `/imtahanlar` + `/imtahanlar/[slug]` — exam catalogue (published only, slug URLs).
+- `/meseleler` — free practice. `/qeydiyyat`,`/daxil-ol` (auth), `/panel` (dashboard).
+- `/panel/odenis/[id]` — manual bank-transfer payment page (focused).
+- Admin: `/admin/exams`, `/admin/purchases`, `/admin/settings` (+ blog admin).
+
+- **Exams live in the DB, not code.** `lib/exams.ts` (server-only) reads the
+  `exams` table via the cookie-less public client → RLS returns only **published**
+  exams (static/ISR-safe). Client-safe types + display helpers are split out
+  (`lib/exams/types.ts`, `lib/exams/display.ts`) so client components don't pull
+  `server-only`. The old `lib/exams/data.ts`/`questions.ts`/`answer-key.ts` are
+  **gone**. `exams.category_slug` matches a blog category slug → exam↔blog links.
+- **Questions + answers never leak.** `exam_questions` is **admin-only** at the
+  table level (RLS). Students receive answer-free questions ONLY through the
+  SECURITY DEFINER RPC `get_exam_questions(uuid)` (`lib/exams/questions.ts`),
+  which first checks `has_exam_access()` (published AND (free OR an `exam_access`
+  grant)). Grading reads `correct_index` server-side with the service role
+  (`lib/exams/grade.ts`) — the one place answers are touched, never exposed.
+  `price=0` NEVER bypasses the published check.
+- **⚠️ REQUIRED: apply `supabase/exam-platform-schema.sql`** (SQL editor — DDL
+  can't run from code). It **drops+recreates** `purchases` + `exam_attempts`
+  (old sample data), adds `exams`, `exam_questions`, `exam_access`,
+  `platform_settings`, extends `profiles` (email/first_name/last_name/
+  student_number), and creates the **private `receipts` bucket**. Supersedes the
+  old `platform-schema.sql` (kept only with a "SUPERSEDED" banner). Verify with
+  `node scripts/security-test.mjs` (full authZ matrix; needs the migration).
+- **Manual purchase workflow (pending→approved/denied).** Student submits on
+  `/panel/odenis/[id]` (`PurchasePanel` → `submitPurchase` in
+  `lib/student/actions.ts`): validates price/published from the DB, uploads the
+  receipt (server-side magic-byte + size check) via the **cookie client** into
+  the student's own private folder, inserts a **pending** `purchases` row via the
+  cookie client under RLS (a student INSERT policy allows only own+pending — no
+  service role for this ordinary op). An "I can't upload a receipt" checkbox sets
+  `receipt_unavailable`. Admin reviews in `/admin/purchases` (`PurchaseTable`);
+  `approvePurchase`/`denyPurchase` (`lib/actions/purchases.ts`) are **service-role**
+  admin writes doing a **race-safe conditional update** (`where status='pending'`)
+  and, on approve, an idempotent `exam_access` grant. Receipts open via
+  short-lived **signed URLs** (`ReceiptViewer` → `fetchReceiptUrl`; storage RLS
+  lets owner-or-admin read).
+- **Access enforcement.** `startAttempt` re-checks `has_exam_access` (RPC) before
+  creating an attempt (service-role, for score integrity); `submitAttempt`
+  re-verifies attempt ownership then grades server-side. A student can never read
+  another student's purchases/access/attempts/receipt (RLS), self-approve, or
+  self-grant (no write policies on `purchases.status`/`exam_access`).
+- **Admin authorization is the blog's model, reused unchanged:** `public.admins`
+  allow-list + `is_admin()` (3 layers: middleware, `requireAdminPage()`, RLS).
+  Every admin action re-checks `isAdmin(supabase)`. The client hook
+  `use-user.ts` exposes `isAdmin` ONLY to show the "Admin panel" nav link — never
+  a security boundary. Grant admin via `insert into public.admins` from SQL.
+- **Payment settings** (`platform_settings`, singleton) hold DISPLAY-ONLY bank
+  details shown on the payment page (authenticated read, admin write) — **never
+  secrets**. Read via `lib/settings.ts`, edited in `/admin/settings`.
+- **Student auth is client-side** (navbar reacts via `onAuthStateChange`).
+  `requireUser` + `app/(public)/panel/layout.tsx` gate `/panel/*`; middleware
+  matches `/admin/*`+`/panel/*`. `/panel` uses `.app-ui` (sans-serif).
+- **Exam titles use a bold SANS-SERIF** via the `.exam-title` class (Inter),
+  overriding the display serif on exam cards/detail/admin/runner. Math/LaTeX
+  untouched. Exam catalogue keeps a denormalized `exams.question_count` (trigger)
+  so public reads never touch the admin-only questions table.
+
 ## Database
 
-`supabase/schema.sql` is the single source of truth (tables, RLS, storage bucket
-`article-images`, 9 seeded categories). The service-role key **cannot run DDL** —
-schema changes are applied by pasting SQL into the Supabase SQL editor. Domain
-types: `lib/types.ts`.
+`supabase/schema.sql` (blog) + `supabase/exam-platform-schema.sql` (platform) are
+the sources of truth (tables, RLS, storage buckets `article-images` public +
+`receipts` private, SECURITY DEFINER `is_admin`/`has_exam_access`/
+`get_exam_questions`). The service-role key **cannot run DDL** — apply schema by
+pasting SQL into the Supabase SQL editor. Domain types: `lib/types.ts`,
+`lib/exams/types.ts`, `lib/student/types.ts`.
 
 ## Conventions
 

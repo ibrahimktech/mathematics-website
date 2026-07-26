@@ -3,10 +3,10 @@
  * Rename `name` / `description` to suit the teacher's blog.
  */
 export const SITE = {
-  name: "Riyaziyyat Bloqu",
-  shortName: "Riyaziyyat",
+  name: "ANTG Olimpiada",
+  shortName: "ANTG",
   description:
-    "Olimpiada məsələləri, həllər, teoremlər və riyazi ideyalar üçün müasir akademik bloq.",
+    "Olimpiada məsələləri, imtahanlar, həllər və riyazi ideyalar üçün riyaziyyat təhsil platforması.",
   url: (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(
     /\/$/,
     "",

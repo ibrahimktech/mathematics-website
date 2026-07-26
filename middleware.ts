@@ -6,6 +6,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Only run on admin routes — the public site needs no auth.
-  matcher: ["/admin/:path*"],
+  // Run on the admin panel (allow-list) and the student dashboard (any user).
+  // The public site needs no auth and is intentionally excluded.
+  matcher: ["/admin/:path*", "/panel/:path*"],
 };

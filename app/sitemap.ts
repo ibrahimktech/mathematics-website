@@ -2,23 +2,54 @@ import type { MetadataRoute } from "next";
 import { SITE, absoluteUrl } from "@/lib/site";
 import { getAllPublishedSlugs } from "@/lib/posts";
 import { getCategories } from "@/lib/categories";
+import { getExams } from "@/lib/exams";
 
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [posts, categories] = await Promise.all([
+  const [posts, categories, exams] = await Promise.all([
     getAllPublishedSlugs(),
     getCategories(),
+    getExams(),
   ]);
   const now = new Date();
 
-  return [
+  const staticPages: MetadataRoute.Sitemap = [
+    { url: SITE.url, lastModified: now, changeFrequency: "daily", priority: 1 },
     {
-      url: SITE.url,
+      url: absoluteUrl("/imtahanlar"),
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: absoluteUrl("/bloq"),
       lastModified: now,
       changeFrequency: "daily",
-      priority: 1,
+      priority: 0.9,
     },
+    {
+      url: absoluteUrl("/meseleler"),
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.6,
+    },
+    {
+      url: absoluteUrl("/haqqinda"),
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.5,
+    },
+  ];
+
+  return [
+    ...staticPages,
+    ...exams.map((e) => ({
+      url: absoluteUrl(`/imtahanlar/${e.slug}`),
+      lastModified: new Date(e.updatedAt || now),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
     ...posts.map((p) => ({
       url: absoluteUrl(`/meqale/${p.slug}`),
       lastModified: new Date(p.updated_at || p.published_at || now),

@@ -46,6 +46,20 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // --- Student dashboard (/panel): ANY signed-in user may enter; there is no
+  // admin allow-list here. Handled first and returned early so the admin logic
+  // below is untouched. Anonymous visitors go to the student login page.
+  if (pathname.startsWith("/panel")) {
+    if (!user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/daxil-ol";
+      url.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(url);
+    }
+    return supabaseResponse;
+  }
+
+  // --- Admin area (/admin): unchanged allow-list behavior. ---
   // Not signed in: allow only the login page; send everyone else to it.
   if (!user) {
     if (isLogin) return supabaseResponse;

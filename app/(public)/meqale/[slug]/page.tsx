@@ -9,9 +9,11 @@ import {
   getAdjacentPosts,
   getRelatedPosts,
 } from "@/lib/posts";
+import { getExamsByCategorySlug } from "@/lib/exams";
 import { LatexContent } from "@/components/site/LatexContent";
 import { ShareButtons } from "@/components/site/ShareButtons";
 import { ArticleRow } from "@/components/site/ArticleRow";
+import { RelatedExamCallout } from "@/components/platform/RelatedExamCallout";
 import { formatDate, toIsoDate } from "@/lib/format";
 import { readingTimeLabel } from "@/lib/reading-time";
 import { SITE, absoluteUrl } from "@/lib/site";
@@ -64,9 +66,12 @@ export default async function ArticlePage({
   const post = await getPost(slug);
   if (!post) notFound();
 
-  const [{ previous, next }, related] = await Promise.all([
+  const [{ previous, next }, related, relatedExams] = await Promise.all([
     getAdjacentPosts(post),
     getRelatedPosts(post),
+    post.category
+      ? getExamsByCategorySlug(post.category.slug)
+      : Promise.resolve([]),
   ]);
 
   const url = absoluteUrl(`/meqale/${post.slug}`);
@@ -93,10 +98,10 @@ export default async function ArticlePage({
       />
 
       <Link
-        href="/"
+        href="/bloq"
         className="text-muted-foreground hover:text-primary mb-8 inline-flex items-center gap-1.5 text-sm font-medium transition-colors"
       >
-        <ArrowLeft className="size-4" /> Ana Səhifə
+        <ArrowLeft className="size-4" /> Bloq
       </Link>
 
       <header className="space-y-5">
@@ -154,6 +159,13 @@ export default async function ArticlePage({
       <div className="border-border mt-10 border-t pt-6">
         <ShareButtons url={url} title={post.title} />
       </div>
+
+      {post.category && relatedExams.length > 0 && (
+        <RelatedExamCallout
+          categorySlug={post.category.slug}
+          topic={post.category.name}
+        />
+      )}
 
       {(previous || next) && (
         <nav className="mt-10 grid gap-4 sm:grid-cols-2">
