@@ -1,4 +1,4 @@
-import { Eye, Users, Repeat, CalendarDays, TrendingUp } from "lucide-react";
+import { Eye, Users, CalendarDays } from "lucide-react";
 import {
   getBlogSummary,
   getBlogDaily,
@@ -43,24 +43,12 @@ export default async function BlogAnalyticsPage() {
         </p>
       </div>
 
-      {/* View KPIs */}
+      {/* View KPIs — kept lean: total views, today, this month, unique visitors. */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Ümumi baxış" value={String(summary.totalViews)} icon={Eye} accent />
         <StatCard label="Bu gün" value={String(summary.viewsToday)} icon={CalendarDays} />
-        <StatCard label="Bu həftə" value={String(summary.viewsWeek)} icon={CalendarDays} />
         <StatCard label="Bu ay" value={String(summary.viewsMonth)} icon={CalendarDays} />
-        <StatCard label="Bu il" value={String(summary.viewsYear)} icon={TrendingUp} />
         <StatCard label="Unikal ziyarətçi" value={String(summary.uniqueVisitors)} icon={Users} />
-        <StatCard label="Təkrar ziyarətçi" value={String(summary.returningVisitors)} icon={Repeat} />
-        <StatCard
-          label="Ortalama / məqalə"
-          value={
-            articles.length
-              ? String(Math.round(summary.totalViews / Math.max(1, articles.filter((a) => a.totalViews > 0).length)))
-              : "0"
-          }
-          icon={Eye}
-        />
       </div>
 
       {/* Views over time */}

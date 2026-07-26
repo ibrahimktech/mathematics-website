@@ -1,12 +1,10 @@
 import {
   Wallet,
-  TrendingUp,
   CalendarDays,
   ShoppingCart,
   Users,
   Repeat,
   UserPlus,
-  Gauge,
 } from "lucide-react";
 import {
   getRevenueStats,
@@ -63,16 +61,12 @@ export default async function SalesAnalyticsPage() {
         </p>
       </div>
 
-      {/* Revenue KPIs */}
+      {/* Revenue KPIs — kept lean: headline revenue, today, this month, total sales. */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Ümumi gəlir" value={formatMoney(rev.total)} icon={Wallet} accent />
         <StatCard label="Bu gün" value={formatMoney(rev.today)} icon={CalendarDays} />
-        <StatCard label="Bu həftə" value={formatMoney(rev.week)} icon={CalendarDays} />
         <StatCard label="Bu ay" value={formatMoney(rev.month)} icon={CalendarDays} />
-        <StatCard label="Bu il" value={formatMoney(rev.year)} icon={TrendingUp} />
-        <StatCard label="Orta sifariş" value={formatMoney(rev.avgOrderValue)} icon={Gauge} />
         <StatCard label="Ümumi satış" value={String(rev.totalPurchases)} icon={ShoppingCart} />
-        <StatCard label="Unikal müştəri" value={String(rev.uniqueCustomers)} icon={Users} />
       </div>
 
       {/* Revenue over time */}
