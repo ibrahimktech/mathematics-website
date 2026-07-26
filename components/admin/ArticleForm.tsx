@@ -138,7 +138,7 @@ export function ArticleForm({
   const busy = saving !== null || deleting;
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-7xl">
       {/* Action bar */}
       <div className="bg-background/95 sticky top-0 z-10 -mx-4 mb-6 flex flex-wrap items-center gap-3 border-b px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <Link
@@ -210,21 +210,21 @@ export function ArticleForm({
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        {/* Main column */}
-        <div className="order-2 min-w-0 space-y-4 lg:order-1">
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Başlıq"
-            aria-label="Başlıq"
-            className="font-heading placeholder:text-muted-foreground/50 w-full bg-transparent text-3xl font-bold tracking-tight outline-none"
-          />
-          <Editor value={content} onChange={setContent} />
-        </div>
+      {/* Editor — full width */}
+      <div className="min-w-0 space-y-4">
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Başlıq"
+          aria-label="Başlıq"
+          className="font-heading placeholder:text-muted-foreground/50 w-full bg-transparent text-3xl font-bold tracking-tight outline-none"
+        />
+        <Editor value={content} onChange={setContent} />
+      </div>
 
-        {/* Settings sidebar */}
-        <aside className="order-1 space-y-5 lg:order-2">
+      {/* Settings — full-width panel below the editor */}
+      <div className="border-border bg-card mt-6 rounded-lg border p-5 sm:p-6">
+        <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <Label htmlFor="slug">Bağlantı (slug)</Label>
             <Input
@@ -259,7 +259,14 @@ export function ArticleForm({
             </select>
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
+            <Label>Teqlər</Label>
+            <div className="mt-1.5">
+              <TagsInput value={tags} onChange={setTags} />
+            </div>
+          </div>
+
+          <div className="sm:col-span-2">
             <Label htmlFor="excerpt">Qısa təsvir</Label>
             <Textarea
               id="excerpt"
@@ -271,7 +278,7 @@ export function ArticleForm({
             />
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
             <Label>Örtük şəkli</Label>
             {coverUrl ? (
               <div className="relative mt-1.5 overflow-hidden rounded-md border">
@@ -313,14 +320,7 @@ export function ArticleForm({
               </label>
             )}
           </div>
-
-          <div>
-            <Label>Teqlər</Label>
-            <div className="mt-1.5">
-              <TagsInput value={tags} onChange={setTags} />
-            </div>
-          </div>
-        </aside>
+        </div>
       </div>
     </div>
   );

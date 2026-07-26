@@ -11,6 +11,7 @@ import {
 } from "@/lib/posts";
 import { getExamsByCategorySlug } from "@/lib/exams";
 import { LatexContent } from "@/components/site/LatexContent";
+import { ViewBeacon } from "@/components/site/ViewBeacon";
 import { ShareButtons } from "@/components/site/ShareButtons";
 import { ArticleRow } from "@/components/site/ArticleRow";
 import { RelatedExamCallout } from "@/components/platform/RelatedExamCallout";
@@ -96,6 +97,7 @@ export default async function ArticlePage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <ViewBeacon postId={post.id} />
 
       <Link
         href="/bloq"

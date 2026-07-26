@@ -132,13 +132,41 @@ is hardcoded. Routing (all Azerbaijani):
   untouched. Exam catalogue keeps a denormalized `exams.question_count` (trigger)
   so public reads never touch the admin-only questions table.
 
+## Analytics (admin-only)
+
+- **Sales analytics** (`/admin/analytics/satis`) are derived from `purchases`
+  (revenue = sum(amount) where `status='approved'`) — no separate ledger table.
+  Aggregated in JS over the small purchases table (`lib/analytics/queries.ts`,
+  deduped per request with React `cache`). Reads use the admin cookie client
+  under RLS (admins SELECT purchases/exams/profiles).
+- **Blog analytics** (`/admin/analytics/bloq`) come from `public.blog_views`
+  (`supabase/analytics-schema.sql`). Views are recorded by a fire-and-forget
+  beacon (`components/site/ViewBeacon.tsx` → `POST /api/view`, `runtime=nodejs`)
+  so article pages stay static/ISR. The route stores a **salted SHA-256 hash of
+  the IP** (never raw PII — `lib/analytics/ip.ts`) with a **service-role** write,
+  de-duplicated per `(post, ip_hash, Baku day)` via a unique index. Heavy DISTINCT
+  aggregates run in Postgres via SECURITY DEFINER RPCs (`blog_view_summary`,
+  `blog_article_stats`, `blog_view_daily`) that re-check `is_admin()` internally.
+  `blog_views` is **admin-read-only** RLS; no public read, no client write.
+- **Timezone:** timestamps stay UTC (`timestamptz`); everything in the admin
+  panel DISPLAYS in **Asia/Baku** via `formatBaku*` in `lib/format.ts`. Time
+  windows (today/week/month/year) are bucketed in Baku (`lib/analytics/time.ts`
+  fixed +4; the RPCs use the tz database). Never show UTC.
+- **Charts are dependency-free** inline SVG/HTML (`components/admin/charts/*`:
+  `StatCard`, `BarList`, `LineChart`, `DonutChart`, `ChartCard`) using the
+  validated data-viz categorical palette (`palette.ts`) for the one categorical
+  chart and `--primary` for single-series. The admin dashboard, sales, and blog
+  pages compose these.
+
 ## Database
 
-`supabase/schema.sql` (blog) + `supabase/exam-platform-schema.sql` (platform) are
-the sources of truth (tables, RLS, storage buckets `article-images` public +
+`supabase/schema.sql` (blog) + `supabase/exam-platform-schema.sql` (platform) +
+`supabase/analytics-schema.sql` (blog_views + admin aggregate RPCs) are the
+sources of truth (tables, RLS, storage buckets `article-images` public +
 `receipts` private, SECURITY DEFINER `is_admin`/`has_exam_access`/
-`get_exam_questions`). The service-role key **cannot run DDL** — apply schema by
-pasting SQL into the Supabase SQL editor. Domain types: `lib/types.ts`,
+`get_exam_questions`/`blog_view_*`). The service-role key **cannot run DDL** —
+apply schema by pasting SQL into the Supabase SQL editor. `supabase/reset-exams.sql`
+wipes exam/sales data (keeps users/blog/settings). Domain types: `lib/types.ts`,
 `lib/exams/types.ts`, `lib/student/types.ts`.
 
 ## Conventions
