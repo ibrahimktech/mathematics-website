@@ -1,24 +1,29 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { formatMoney } from "@/lib/format";
 
 /**
  * Single-series time trend (change-over-time). Responsive SVG with a fixed
  * viewBox; the 2px line uses a non-scaling stroke so it stays crisp at any
  * width. Single hue (brand primary) → no legend needed; the card title names it.
  * Ships a hover crosshair + tooltip (interaction default for HTML/SVG charts).
+ *
+ * `format` is a plain string (not a function) so this Client Component can be
+ * used from Server Components without a non-serializable prop.
  */
 export function LineChart({
   labels,
   values,
-  formatValue = (n) => String(n),
+  format = "number",
   height = 240,
 }: {
   labels: string[];
   values: number[];
-  formatValue?: (n: number) => string;
+  format?: "money" | "number";
   height?: number;
 }) {
+  const formatValue = (n: number) => (format === "money" ? formatMoney(n) : String(n));
   const W = 900;
   const H = height;
   const padL = 6;

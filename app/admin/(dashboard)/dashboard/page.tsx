@@ -106,7 +106,7 @@ export default async function DashboardPage() {
           <LineChart
             labels={revSeries.labels}
             values={revSeries.values}
-            formatValue={(n) => formatMoney(n)}
+            format="money"
             height={200}
           />
         </ChartCard>

@@ -77,13 +77,13 @@ export default async function SalesAnalyticsPage() {
 
       {/* Revenue over time */}
       <ChartCard title="Gəlir (son 30 gün)" subtitle="Gündəlik təsdiqlənmiş gəlir">
-        <LineChart labels={series.labels} values={series.values} formatValue={(n) => formatMoney(n)} />
+        <LineChart labels={series.labels} values={series.values} format="money" />
       </ChartCard>
 
       {/* Category share + top selling */}
       <div className="grid gap-6 lg:grid-cols-2">
         <ChartCard title="Kateqoriya üzrə gəlir">
-          <DonutChart items={donut} formatValue={(n) => formatMoney(n)} />
+          <DonutChart items={donut} format="money" />
         </ChartCard>
         <ChartCard title="Ən çox satılan imtahanlar">
           {topSelling.length ? (

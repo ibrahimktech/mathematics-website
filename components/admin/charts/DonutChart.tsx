@@ -1,20 +1,25 @@
 "use client";
 
 import { useState } from "react";
+import { formatMoney } from "@/lib/format";
 
 /**
  * Category share (part-to-whole) as a donut. Categorical color in fixed order,
  * a 2px surface gap between arcs, and a legend that lists each value + share —
  * so identity and magnitude are both readable without relying on hue. Hovering
  * an arc or legend row emphasizes it and shows its value in the center.
+ *
+ * `format` is a plain string (not a function) so this Client Component can be
+ * used from Server Components without a non-serializable prop.
  */
 export function DonutChart({
   items,
-  formatValue = (n) => String(n),
+  format = "number",
 }: {
   items: { label: string; value: number; color: string }[];
-  formatValue?: (n: number) => string;
+  format?: "money" | "number";
 }) {
+  const formatValue = (n: number) => (format === "money" ? formatMoney(n) : String(n));
   const [hi, setHi] = useState<number | null>(null);
   const total = items.reduce((s, i) => s + i.value, 0);
   const C = 100;
