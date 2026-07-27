@@ -15,7 +15,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   // Authoritative server-side gate for every page in the (dashboard) group:
-  // not signed in → /admin/login; signed in but not an admin → /.
+  // not signed in → /daxil-ol; signed in but not an admin → /.
   await requireAdminPage();
 
   return (

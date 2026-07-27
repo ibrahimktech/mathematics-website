@@ -33,17 +33,28 @@ const ExamInput = z.object({
 });
 export type ExamInputData = z.input<typeof ExamInput>;
 
-const QuestionInput = z.object({
-  id: z.string().uuid().optional(),
-  exam_id: z.string().uuid(),
-  prompt: z.string().trim().min(1, "Sual mətni tələb olunur").max(4000),
-  choices: z
-    .array(z.string().trim().min(1, "Boş variant ola bilməz").max(2000))
-    .min(2, "Ən azı iki variant lazımdır")
-    .max(8),
-  correct_index: z.coerce.number().int().min(0),
-  explanation: z.string().trim().max(4000).optional().nullable(),
-});
+const QuestionInput = z
+  .object({
+    id: z.string().uuid().optional(),
+    exam_id: z.string().uuid(),
+    prompt: z.string().trim().min(1, "Sual mətni tələb olunur").max(4000),
+    choices: z
+      .array(z.string().trim().min(1, "Boş variant ola bilməz").max(2000))
+      .min(2, "Ən azı iki variant lazımdır")
+      .max(8),
+    correct_index: z.coerce.number().int().min(0),
+    explanation: z.string().trim().max(4000).optional().nullable(),
+  })
+  /**
+   * The answer index must actually point at one of the choices. The table check
+   * constraint only enforces `>= 0`, so an out-of-range index used to be stored
+   * happily — and then `gradeExam` could never match it, silently making the
+   * question unanswerable and every student's score wrong.
+   */
+  .refine((q) => q.correct_index < q.choices.length, {
+    path: ["correct_index"],
+    message: "Düzgün cavab variantlardan biri olmalıdır.",
+  });
 export type QuestionInputData = z.input<typeof QuestionInput>;
 
 async function requireAdmin(

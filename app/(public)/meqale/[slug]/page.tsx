@@ -18,6 +18,7 @@ import { RelatedExamCallout } from "@/components/platform/RelatedExamCallout";
 import { formatDate, toIsoDate } from "@/lib/format";
 import { readingTimeLabel } from "@/lib/reading-time";
 import { SITE, absoluteUrl } from "@/lib/site";
+import { jsonLdScript } from "@/lib/json-ld";
 
 const getPost = cache(getPostBySlug);
 
@@ -95,7 +96,7 @@ export default async function ArticlePage({
     <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <ViewBeacon postId={post.id} />
 

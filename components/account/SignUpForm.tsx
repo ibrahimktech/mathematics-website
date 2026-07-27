@@ -7,6 +7,15 @@ import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useSessionUser } from "@/lib/account/use-user";
+import { navigateAfterAuth } from "@/lib/account/navigate";
+import { beginSignUp } from "@/lib/actions/account";
+import {
+  MIN_PASSWORD_LENGTH,
+  validateEmail,
+  validateName,
+  validatePassword,
+} from "@/lib/security/password";
+import { safeAbsoluteRedirect, safeRedirectPath } from "@/lib/security/redirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +24,12 @@ import { Label } from "@/components/ui/label";
  * Signs up with the BROWSER Supabase client. If email confirmation is required
  * (no session returned), the student is sent to the login page; otherwise they
  * go straight to the target. The navbar reacts immediately via onAuthStateChange.
+ *
+ * The checks below run twice: here for instant feedback, and again inside
+ * `beginSignUp` on the server — which also rate-limits sign-ups and returns the
+ * normalised values actually submitted, so editing the client bundle buys
+ * nothing. The success message is identical for a new and an existing address
+ * so the form cannot be used to test which e-mails have accounts.
  */
 export function SignUpForm() {
   const router = useRouter();
@@ -26,16 +41,13 @@ export function SignUpForm() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Only allow same-origin relative redirects (guard against open redirects).
-  const rawRedirect = params.get("redirect") || "/panel";
-  const redirect =
-    rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
-      ? rawRedirect
-      : "/panel";
+  // Only allow same-origin relative paths (see lib/security/redirect.ts).
+  const redirect = safeRedirectPath(params.get("redirect"), "/panel");
 
+  // Skipped while a submit is in flight — that handler owns the redirect.
   useEffect(() => {
-    if (user) router.replace(redirect);
-  }, [user, redirect, router]);
+    if (user && !loading) navigateAfterAuth(redirect);
+  }, [user, loading, redirect]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,47 +55,60 @@ export function SignUpForm() {
       toast.error("Sistem hələ konfiqurasiya edilməyib.");
       return;
     }
-    if (firstName.trim().length < 2) {
-      toast.error("Ad ən azı 2 hərf olmalıdır.");
+    // Fast local feedback. The authoritative copy of these rules runs server-side.
+    const localError =
+      validateName(firstName, "Ad") ??
+      validateName(lastName, "Soyad") ??
+      validateEmail(email) ??
+      validatePassword(password, {
+        email,
+        name: `${firstName} ${lastName}`,
+      });
+    if (localError) {
+      toast.error(localError);
       return;
     }
-    if (lastName.trim().length < 2) {
-      toast.error("Soyad ən azı 2 hərf olmalıdır.");
-      return;
-    }
-    if (password.length < 6) {
-      toast.error("Şifrə ən azı 6 simvol olmalıdır.");
-      return;
-    }
+
     setLoading(true);
+
+    // Server-side validation + sign-up rate limit. Returns the cleaned values.
+    const gate = await beginSignUp({ email, password, firstName, lastName });
+    if (!gate.ok) {
+      setLoading(false);
+      toast.error(gate.error);
+      return;
+    }
+
     const supabase = createClient();
-    const fullName = `${firstName.trim()} ${lastName.trim()}`;
     const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
+      email: gate.email,
       password,
       options: {
         data: {
-          full_name: fullName,
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
+          full_name: gate.fullName,
+          first_name: gate.firstName,
+          last_name: gate.lastName,
         },
-        emailRedirectTo: `${window.location.origin}/panel`,
+        // Built from our own origin, never from `?redirect=`, so a crafted link
+        // can't turn the confirmation mail into a token hand-off to another host.
+        emailRedirectTo: safeAbsoluteRedirect(window.location.origin, redirect, "/panel"),
       },
     });
-    setLoading(false);
     if (error) {
-      toast.error(
-        error.message.toLowerCase().includes("already")
-          ? "Bu e-poçt artıq qeydiyyatdan keçib."
-          : "Qeydiyyat alınmadı. Yenidən cəhd edin.",
-      );
+      setLoading(false);
+      // No branch on "already registered": telling the visitor that an address
+      // is taken is an account-enumeration oracle. One message for every failure.
+      toast.error("Qeydiyyat alınmadı. Yenidən cəhd edin.");
       return;
     }
     if (data.session) {
-      toast.success("Xoş gəldin! Hesabın yaradıldı.");
-      router.replace(redirect);
-      router.refresh();
+      // Confirmation is off — the account is already signed in, so go straight
+      // to the panel. `loading` stays true for the length of the navigation.
+      navigateAfterAuth(redirect);
     } else {
+      setLoading(false);
+      // Also the response when the address already exists — identical wording,
+      // so a bulk prober learns nothing either way.
       toast.success(
         "Təsdiq linki e-poçtuna göndərildi. Zəhmət olmasa e-poçtunu yoxla.",
       );
@@ -138,12 +163,14 @@ export function SignUpForm() {
           type="password"
           autoComplete="new-password"
           required
-          minLength={6}
+          minLength={MIN_PASSWORD_LENGTH}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="mt-1.5"
         />
-        <p className="text-muted-foreground mt-1.5 text-xs">Ən azı 6 simvol.</p>
+        <p className="text-muted-foreground mt-1.5 text-xs">
+          Ən azı {MIN_PASSWORD_LENGTH} simvol; böyük hərf, kiçik hərf və rəqəm.
+        </p>
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
         {loading && <Loader2 className="animate-spin" />}

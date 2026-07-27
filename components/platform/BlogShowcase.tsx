@@ -11,8 +11,8 @@ export function BlogShowcase({ posts }: { posts: PostWithCategory[] }) {
       <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <SectionHeading
           eyebrow="Bloq"
-          title="Məşqdən əvvəl öyrən"
-          description="Teoremlər, həllər və riyazi ideyalar — hamısı pulsuz. Əvvəl oxu, sonra imtahanla özünü sına."
+          title="Sınaqdan əvvəl oxu"
+          description="Əvvəlcə əmin ol ki, məktəb materiallarını tamamilə mənimsəmisən! Amma bu yetərli deyil — olimpiadaya hazırlaşmaq üçün daha dərin düşünmək və məsələ həllini ciddiyə almaq lazımdır. Bloqumuzda bu barədə məqalələr tapa bilərsən."
         />
         <Link
           href="/bloq"

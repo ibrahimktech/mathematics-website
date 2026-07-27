@@ -74,9 +74,26 @@ function escapeAttr(s: string): string {
 function escapeReg(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+/**
+ * URL allow-list for `\href` and `\includegraphics`.
+ *
+ * `data:image/` was too loose: `data:image/svg+xml` is an image MIME type whose
+ * payload is a full XML document that can carry `<script>`. It does not execute
+ * inside `<img src>`, but the same helper also feeds `<a href>`, where opening
+ * such a URL runs the script in this origin. Restricting `data:` to the raster
+ * formats closes that without affecting real inline images.
+ *
+ * Note the leading-character guard: browsers ignore control characters and
+ * whitespace when parsing a scheme, so `java\tscript:` must not slip through a
+ * naive prefix test — anything that isn't an exact allow-list match returns "".
+ */
 function sanitizeUrl(u: string): string {
-  const t = u.trim();
-  return /^(https?:\/\/|\/|data:image\/|#|mailto:)/i.test(t) ? t : "";
+  // Strip characters a browser would ignore before parsing the scheme.
+  const t = u.trim().replace(/[\u0000-\u0020\u007f-\u009f]/g, "");
+  if (!t) return "";
+  return /^(https?:\/\/|\/(?![\\/])|data:image\/(?:png|jpe?g|gif|webp);|#|mailto:)/i.test(t)
+    ? t
+    : "";
 }
 function todayStr(): string {
   return new Intl.DateTimeFormat("en-US", {

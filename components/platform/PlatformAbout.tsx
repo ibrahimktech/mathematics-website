@@ -6,12 +6,12 @@ const POINTS = [
     text: "İmtahanlar yaddaş yoxlaması deyil — onlar səni ideya axtarmağa və məsələni dərindən anlamağa vadar edir.",
   },
   {
-    title: "Zəif tərəfləri aşkar et",
-    text: "Hər imtahan hansı mövzuları möhkəmləndirməli olduğunu aydın göstərir, beləliklə vaxtını doğru yerə yönəldirsən.",
+    title: "Zəif tərəflərini aşkar et",
+    text: "Hər sınaqda səhvlərini gör, onları araşdır və növbəti dəfə daha yaxşı hazırlaş.",
   },
   {
-    title: "Addım-addım inkişaf",
-    text: "Başlanğıc səviyyəsindən olimpiadaya qədər çətinlik pillələri — hazır olduğun tempdə irəlilə.",
+    title: "Motivasiya ilə irəlilə!",
+    text: "Uğursuzluqların səni dayandırmasına imkan vermə. Hər səhv bir dərsdir və hər dərs səni daha güclü edir.",
   },
 ];
 
@@ -21,8 +21,8 @@ export function PlatformAbout() {
     <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
       <SectionHeading
         eyebrow="Platforma haqqında"
-        title="Riyazi məsələ həllini ciddiyə alanlar üçün"
-        description="Bu platforma diqqətlə hazırlanmış imtahanlar və məsələlər vasitəsilə tələbələrin problem həlli bacarığını inkişaf etdirmək üçün qurulub. Məqsəd yüksək bal deyil — daha aydın və dərin düşünməkdir."
+        title="Bizim Məqsədimiz"
+        description="Bu platforma tamamilə olimpiadalara hazırlaşmaq məqsədiylə şagirdlərə dəstək olmaq üçün yaradılıb. Burada məqsədimiz şagirdlərin riyaziyyat bacarıqlarını inkişaf etdirmək və onları real imtahan şəraitinə hazırlamaqdır."
       />
 
       <div className="mt-12 grid gap-8 sm:grid-cols-3 sm:gap-6 lg:gap-10">

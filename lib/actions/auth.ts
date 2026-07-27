@@ -3,42 +3,20 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { isAdmin } from "@/lib/admin/auth";
-import type { ActionResult } from "./types";
 
-export async function signIn(input: {
-  email: string;
-  password: string;
-}): Promise<ActionResult> {
-  if (!isSupabaseConfigured) {
-    return { ok: false, error: "Supabase konfiqurasiya edilməyib." };
-  }
-  const email = input.email?.trim();
-  const password = input.password ?? "";
-  if (!email || !password) {
-    return { ok: false, error: "E-poçt və şifrə tələb olunur." };
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) {
-    return { ok: false, error: "E-poçt və ya şifrə yanlışdır." };
-  }
-
-  // Credentials are valid — but only allow-listed admins may hold a panel
-  // session. Reject anyone else and drop the session immediately so no
-  // half-authenticated state lingers.
-  if (!(await isAdmin(supabase))) {
-    await supabase.auth.signOut();
-    return { ok: false, error: "Bu hesabın admin icazəsi yoxdur." };
-  }
-  return { ok: true };
-}
-
+/**
+ * Signs the current admin out of their panel session and returns to the public
+ * home page.
+ *
+ * There is no separate admin login form. Admins sign IN through the shared
+ * `/daxil-ol` login like any user; being in the `public.admins` allow-list is
+ * what unlocks the panel (surfaced as the "Admin panel" nav link and enforced
+ * by middleware + `requireAdminPage()` + RLS).
+ */
 export async function signOut(): Promise<void> {
   if (isSupabaseConfigured) {
     const supabase = await createClient();
     await supabase.auth.signOut();
   }
-  redirect("/admin/login");
+  redirect("/");
 }

@@ -37,12 +37,15 @@ with `_` — underscore = Next private folder = 404).
 - **Auth/RLS (admin = allow-list, NOT just "authenticated"):** admins are the
   user IDs in `public.admins`; the `public.is_admin()` SECURITY DEFINER function
   is the single source of truth, checked in three layers — (1) `middleware.ts`
-  guards `/admin/*` (unauth → `/admin/login`, authed-but-not-admin → `/`),
+  guards `/admin/*` (unauth → `/daxil-ol`, authed-but-not-admin → `/`),
   (2) the `(dashboard)` layout calls `requireAdminPage()` (`lib/admin/auth.ts`)
   as the authoritative per-request gate, (3) RLS in `supabase/schema.sql` gates
   every write (posts, categories, storage) and all draft reads on `is_admin()`.
-  Actions in `lib/actions/*` re-check via `isAdmin(supabase)` and validate with
-  zod; `signIn` rejects + signs out non-admins. Grant admin by inserting into
+  **There is no separate admin login page** — admins sign in through the shared
+  `/daxil-ol` login like any user; membership in `public.admins` unlocks the panel
+  (surfaced as the "Admin panel" nav link in `AccountMenu`). Actions in
+  `lib/actions/*` re-check via `isAdmin(supabase)` and validate with zod. Grant
+  admin by inserting into
   `public.admins` from the SQL editor (see the bottom of `schema.sql`) — there
   are no write RLS policies on that table, so the anon key can't touch it. Only
   the anon key ever reaches the client; the service-role key is unused in code.
@@ -168,6 +171,53 @@ sources of truth (tables, RLS, storage buckets `article-images` public +
 apply schema by pasting SQL into the Supabase SQL editor. `supabase/reset-exams.sql`
 wipes exam/sales data (keeps users/blog/settings). Domain types: `lib/types.ts`,
 `lib/exams/types.ts`, `lib/student/types.ts`.
+
+## Security (`lib/security/*`)
+
+Shared primitives, imported by BOTH the client forms and the server actions so
+the two rule sets can never drift. `password.ts` / `redirect.ts` are pure (safe
+in client components); `rate-limit.ts` / `log.ts` / `request.ts` are `server-only`.
+
+- **Auth flow is unchanged** (browser `signInWithPassword`, so the navbar still
+  reacts via `onAuthStateChange`) but every attempt is bracketed by server
+  actions in `lib/actions/account.ts`: `beginSignIn` → rate limit/lockout →
+  Supabase → `reportSignIn` records the outcome. `beginSignUp` re-validates
+  server-side and returns the CLEANED values the client then submits.
+  **Password reset runs entirely server-side** (`requestPasswordReset`), so its
+  rate limit can't be skipped; pages are `/sifre-sifirlama` + `/sifre-yenile`.
+- **Rate limiting is in-process** (`rate-limit.ts`): per server instance, lost on
+  cold start, and blind to requests that hit Supabase Auth directly. Supabase's
+  own Auth limits + CAPTCHA are the real ceiling — see README §8.2. Lockouts are
+  keyed per **(IP + account)** via `authKeys()` so nobody can lock a victim out.
+- **Never reveal whether an account exists.** Sign-in, sign-up and reset all
+  return one generic message. Don't "improve" the UX by branching on
+  `error.message.includes("already")` — that's an enumeration oracle.
+- **`safeRedirectPath()` for every `?redirect=`.** `startsWith("/") &&
+  !startsWith("//")` is NOT sufficient — browsers read `/\host` as
+  protocol-relative. Never build a Supabase `emailRedirectTo` from user input;
+  use `safeAbsoluteRedirect(window.location.origin, …)`.
+- **Client IP comes from `security/request.ts`**, which prefers proxy-set headers
+  and reads XFF from the trusted (right) end. `x-forwarded-for` left-most is
+  client-controlled — using it makes rate limits and view dedup forgeable.
+  Tunable with `TRUSTED_PROXY_COUNT`. Route handlers that write must also call
+  `isSameOrigin()` (Server Actions get that check for free; route handlers don't).
+- **Logging**: `logSecurityEvent()` writes one JSON line, emails masked, IPs
+  hashed. Never log passwords, tokens or cookies. The Edge middleware can't
+  import it (`node:crypto`), so it logs inline without PII.
+- **Headers/CSP live in `next.config.ts`.** `script-src` keeps `'unsafe-inline'`
+  because a nonce would force every page dynamic and kill the static/ISR public
+  site; everything else (`object-src`, `base-uri`, `form-action`,
+  `frame-ancestors`, `connect-src`) is locked down. Because of that, HTML-escape
+  anything interpolated into a `<script>` — use `jsonLdScript()` from
+  `lib/json-ld.ts` for JSON-LD, never bare `JSON.stringify`.
+- **Auth cookies are NOT HttpOnly** and cannot be, because sign-in happens in the
+  browser (`AUTH_COOKIE_OPTIONS` in `lib/supabase/config.ts` explains the
+  trade-off). The mitigation is the CSP + the renderer's output escaping.
+- **Sensitive student actions require a verified email** (`verifiedUser()` in
+  `lib/student/actions.ts`), and `supabase/security-hardening.sql` re-derives
+  `purchases.amount` from the exam price in a trigger — the client never sets
+  money. Apply that file; do NOT re-run `exam-platform-schema.sql` (it drops
+  `purchases`/`exam_attempts`).
 
 ## Conventions
 

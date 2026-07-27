@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient, isServiceRoleConfigured } from "@/lib/supabase/admin";
-import { getClientIp, hashIp, bakuViewDay } from "@/lib/analytics/ip";
+import { hashIp, bakuViewDay } from "@/lib/analytics/ip";
+import { getClientIp, isSameOrigin } from "@/lib/security/request";
+import { consume, RATE_RULES } from "@/lib/security/rate-limit";
 
 /**
  * Records ONE blog-article view. Fire-and-forget beacon from the article page
@@ -22,6 +24,21 @@ export async function POST(request: NextRequest) {
   try {
     if (!isServiceRoleConfigured) return new NextResponse(null, { status: 204 });
 
+    /**
+     * CSRF: this is a plain route handler, so it does not get the Origin/Host
+     * check that Next.js applies to Server Actions. Without it, any site could
+     * make its visitors' browsers POST here. The write is low-impact (a view
+     * count), but a state-changing endpoint should still refuse cross-site calls.
+     */
+    if (!isSameOrigin(request)) return new NextResponse(null, { status: 204 });
+
+    // Cap how fast one address can register views, so the counter can't be
+    // driven up in a loop even across many different articles.
+    const ip = getClientIp(request.headers);
+    if (!consume(`view:${ip}`, RATE_RULES.viewBeacon).allowed) {
+      return new NextResponse(null, { status: 204 });
+    }
+
     let postId = "";
     try {
       const body = await request.json();
@@ -31,7 +48,7 @@ export async function POST(request: NextRequest) {
     }
     if (!UUID_RE.test(postId)) return new NextResponse(null, { status: 204 });
 
-    const ipHash = hashIp(getClientIp(request.headers));
+    const ipHash = hashIp(ip);
     const viewDay = bakuViewDay();
 
     const admin = createAdminClient();

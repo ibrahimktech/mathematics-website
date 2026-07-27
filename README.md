@@ -64,7 +64,10 @@ npm run dev
 ```
 
 - Public site: <http://localhost:3000>
-- Admin login: <http://localhost:3000/admin/login> (use the account from step 3.5)
+- Log in at <http://localhost:3000/daxil-ol> (use the account from step 3.5). If
+  that account is in `public.admins`, an **"Admin panel"** link appears in the
+  account menu → <http://localhost:3000/admin/dashboard>. There is no separate
+  admin login page.
 
 > Ports 3000/3001 already taken? Run `npm run dev -- -p 4319` and adjust the URL.
 
@@ -92,6 +95,80 @@ npm run dev
    `https://riyaziyyat.example.com`).
 3. In Supabase **Authentication → URL Configuration**, add your production
    domain to the allowed Site URL / redirect URLs.
+
+---
+
+## 8. Security
+
+Most controls are enforced in code (see below), but a handful live in the
+Supabase dashboard and **must be set by hand** — the app cannot configure them.
+
+### 8.1 Required Supabase settings
+
+| Where | Setting | Value |
+| --- | --- | --- |
+| Authentication → Sign In / Providers | **Confirm email** | **ON** — the app refuses purchases and exam attempts for unverified accounts, and unverified sign-ups are how throwaway abuse gets in |
+| Authentication → Sign In / Providers | **Minimum password length** | **10** (matches `MIN_PASSWORD_LENGTH`) |
+| Authentication → Sign In / Providers | **Password requirements** | lower + upper + digits |
+| Authentication → Attack Protection | **Leaked password protection** | **ON** — checks new passwords against HaveIBeenPwned |
+| Authentication → Attack Protection | **CAPTCHA (hCaptcha/Turnstile)** | **ON** for production — see 8.2 |
+| Authentication → Rate Limits | token / signup / recovery limits | lower the defaults to taste |
+| Authentication → Sessions | **Refresh token rotation** + reuse detection | **ON** |
+| Authentication → Sessions | **Time-box user sessions** | e.g. 7 days |
+| Authentication → Email | **OTP / link expiry** | 1 hour or less (reset links) |
+| Authentication → URL Configuration | Redirect allow-list | your domain only — never a wildcard |
+
+Then run the additive hardening migration once:
+
+**SQL Editor → New query →** paste
+[`supabase/security-hardening.sql`](supabase/security-hardening.sql) **→ Run.**
+It is idempotent. **Do not** re-run `exam-platform-schema.sql` — that file drops
+`purchases` and `exam_attempts`.
+
+Verify the whole authorization matrix afterwards:
+
+```bash
+node scripts/security-test.mjs
+```
+
+### 8.2 Brute-force protection — how the two layers divide
+
+`lib/security/rate-limit.ts` throttles sign-in, sign-up, password reset,
+password change and purchase submission, with progressive delays and temporary
+lockouts. Lockouts are keyed per **(IP + account)**, never per account alone, so
+nobody can lock a victim out of their own account by failing logins from
+elsewhere.
+
+Be clear about its limits: that limiter is **in-process**. It is per server
+instance and resets on cold start, and it only sees traffic that goes through
+this app. An attacker who posts straight to the Supabase Auth API never touches
+it. **Supabase's own Auth rate limits and CAPTCHA are the control on that path**
+— enable both in production. The app-side limiter is defence in depth and the
+source of the security log.
+
+### 8.3 What is enforced in code
+
+- **Authorization** — `public.admins` allow-list + `is_admin()`, checked in
+  middleware, in `requireAdminPage()`, in every server action, and in RLS.
+  Students reach private data only through RLS-scoped queries; exam answers are
+  read exclusively server-side (`lib/exams/grade.ts`).
+- **Sessions** — cookies are `SameSite=Lax` + `Secure` (production) with a
+  pinned path; `/panel/*` and `/admin/*` are `no-store`. Changing a password
+  requires the current password and revokes all other sessions.
+- **Headers** — CSP, HSTS, X-Frame-Options, X-Content-Type-Options,
+  Referrer-Policy, Permissions-Policy and COOP are set in `next.config.ts`.
+- **Validation** — every field is validated on the server (`lib/security/*`),
+  never only in the browser. Redirects are restricted to same-origin paths.
+- **Logging** — security events go to the server log as one JSON line each, with
+  emails masked and IPs hashed. Passwords, tokens and cookies are never logged.
+
+### 8.4 Secrets
+
+`SUPABASE_SERVICE_ROLE_KEY` is server-only (`lib/supabase/admin.ts` is guarded by
+`server-only`, so importing it into a client component fails the build). Only the
+anon key is ever shipped to the browser. `.env*` files are git-ignored; only
+`.env.example` is committed. If a service-role key is ever pasted into a commit,
+a chat, or a log, **rotate it** in Supabase → Project Settings → API.
 
 ---
 

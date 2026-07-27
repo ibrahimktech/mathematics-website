@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useSessionUser } from "@/lib/account/use-user";
+import { navigateAfterAuth } from "@/lib/account/navigate";
+import { beginSignIn, reportSignIn } from "@/lib/actions/account";
+import { safeRedirectPath } from "@/lib/security/redirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,26 +18,30 @@ import { Label } from "@/components/ui/label";
 /**
  * Signs in with the BROWSER Supabase client so the navbar updates immediately
  * (onAuthStateChange) and the auth cookie is set for the server/middleware.
+ *
+ * Every attempt is bracketed by two server actions: `beginSignIn` applies the
+ * rate limit / lockout before Supabase is contacted, and `reportSignIn` records
+ * the outcome so repeated failures escalate into a temporary lockout. The UI
+ * never distinguishes "no such account" from "wrong password" — both produce
+ * the single generic message, so this form cannot be used to enumerate users.
  */
 export function SignInForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const user = useSessionUser();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Only allow same-origin relative redirects (guard against open redirects).
-  const rawRedirect = params.get("redirect") || "/panel";
-  const redirect =
-    rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
-      ? rawRedirect
-      : "/panel";
+  // Only allow same-origin relative paths — see lib/security/redirect.ts for
+  // the bypasses (`/\host`, `/%09//host`, …) a naive prefix check lets through.
+  const redirect = safeRedirectPath(params.get("redirect"), "/panel");
 
-  // Already signed in → straight to the target.
+  // Already signed in (a returning visitor opening /daxil-ol) → straight to the
+  // target. Skipped while a submit is in flight: that handler owns the redirect
+  // and would otherwise race this one.
   useEffect(() => {
-    if (user) router.replace(redirect);
-  }, [user, redirect, router]);
+    if (user && !loading) navigateAfterAuth(redirect);
+  }, [user, loading, redirect]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,19 +49,40 @@ export function SignInForm() {
       toast.error("Sistem hələ konfiqurasiya edilməyib.");
       return;
     }
+    const normalizedEmail = email.trim().toLowerCase();
     setLoading(true);
+
+    // Server-side throttle + lockout. Runs BEFORE Supabase is contacted, so a
+    // locked-out attempt costs the attacker a request and gains them nothing.
+    const gate = await beginSignIn(normalizedEmail);
+    if (!gate.ok) {
+      setLoading(false);
+      toast.error(gate.error);
+      return;
+    }
+
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: normalizedEmail,
       password,
     });
-    setLoading(false);
+
+    // Record the outcome so failures escalate and a success clears the counter.
+    // Bookkeeping must never strand a signed-in user on the login page, so a
+    // failure here is swallowed rather than allowed to skip the redirect below.
+    await reportSignIn(normalizedEmail, !error).catch(() => {});
+
     if (error) {
+      setLoading(false);
+      // Deliberately identical for "unknown account", "wrong password" and
+      // "unconfirmed email" — the real reason is only ever in the server log.
       toast.error("E-poçt və ya şifrə yanlışdır.");
       return;
     }
-    router.replace(redirect);
-    router.refresh();
+
+    // Signed in — hand off to the panel. `loading` deliberately stays true so
+    // the form cannot be resubmitted during the navigation.
+    navigateAfterAuth(redirect);
   }
 
   return (
@@ -71,7 +100,15 @@ export function SignInForm() {
         />
       </div>
       <div>
-        <Label htmlFor="password">Şifrə</Label>
+        <div className="flex items-baseline justify-between">
+          <Label htmlFor="password">Şifrə</Label>
+          <Link
+            href={`/sifre-sifirlama?redirect=${encodeURIComponent(redirect)}`}
+            className="text-muted-foreground hover:text-primary text-xs font-medium"
+          >
+            Şifrəni unutmusan?
+          </Link>
+        </div>
         <Input
           id="password"
           type="password"

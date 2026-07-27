@@ -18,6 +18,7 @@ import { ExamCard } from "@/components/platform/ExamCard";
 import { ArticleMiniCard } from "@/components/platform/ArticleMiniCard";
 import { SITE, absoluteUrl } from "@/lib/site";
 import { cn } from "@/lib/utils";
+import { jsonLdScript } from "@/lib/json-ld";
 
 const getExam = cache(getExamBySlug);
 
@@ -76,7 +77,7 @@ export default async function ExamDetailPage({
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:py-14">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
 
       <Link

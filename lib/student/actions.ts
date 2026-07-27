@@ -1,11 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient, isServiceRoleConfigured } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getExamById } from "@/lib/exams";
 import { gradeExam } from "@/lib/exams/grade";
+import { getClientIp } from "@/lib/security/request";
+import { consume, RATE_RULES } from "@/lib/security/rate-limit";
+import { logSecurityEvent } from "@/lib/security/log";
 import type { ActionResult } from "@/lib/actions/types";
 
 /**
@@ -21,6 +25,10 @@ import type { ActionResult } from "@/lib/actions/types";
 
 const RECEIPT_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
+/** Ids arriving from the client are shape-checked before they reach Postgres. */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Verified user id from the session cookie, or null. */
 async function sessionUserId(): Promise<string | null> {
   const supabase = await createClient();
@@ -28,6 +36,36 @@ async function sessionUserId(): Promise<string | null> {
     data: { user },
   } = await supabase.auth.getUser();
   return user?.id ?? null;
+}
+
+/**
+ * The verified user, but ONLY if their e-mail has been confirmed.
+ *
+ * Money and exam access are the sensitive actions on this platform, and both
+ * hang off an address nobody has proven they control. Without this check, a
+ * throwaway address can file purchase requests (wasting the teacher's review
+ * time and polluting the sales figures) and there is no reliable way to contact
+ * the buyer. `email_confirmed_at` is set by Supabase Auth only after the
+ * confirmation link is followed, so it cannot be forged from the client.
+ *
+ * Returns a discriminated result so callers can give the right message.
+ */
+async function verifiedUser(): Promise<
+  | { ok: true; id: string; email: string | null }
+  | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Əvvəlcə daxil olun." };
+  if (!user.email_confirmed_at) {
+    return {
+      ok: false,
+      error: "Davam etmək üçün e-poçt ünvanınızı təsdiqləyin.",
+    };
+  }
+  return { ok: true, id: user.id, email: user.email ?? null };
 }
 
 function notReady(): ActionResult {
@@ -68,11 +106,33 @@ function sniffReceipt(
 export async function submitPurchase(formData: FormData): Promise<ActionResult> {
   if (!isSupabaseConfigured) return notReady();
 
-  const userId = await sessionUserId();
-  if (!userId) return { ok: false, error: "Əvvəlcə daxil olun." };
+  // AUTHENTICATION + email verification (see verifiedUser).
+  const session = await verifiedUser();
+  if (!session.ok) return { ok: false, error: session.error };
+  const userId = session.id;
+
+  // Rate limit: each submission can carry a 5 MB upload and creates review work.
+  const ip = getClientIp(await headers());
+  const verdict = consume(`purchase:${userId}`, RATE_RULES.purchase);
+  if (!verdict.allowed) {
+    logSecurityEvent("abuse.rate_limited", {
+      email: session.email,
+      ip,
+      action: "submitPurchase",
+      retryAfterSeconds: verdict.retryAfterSeconds,
+    });
+    return {
+      ok: false,
+      error: `Çox sayda sorğu. ${Math.ceil(
+        verdict.retryAfterSeconds / 60,
+      )} dəqiqə sonra yenidən cəhd edin.`,
+    };
+  }
 
   const examId = String(formData.get("examId") ?? "").trim();
   if (!examId) return { ok: false, error: "İmtahan seçilməyib." };
+  // Reject a malformed id before it reaches the database.
+  if (!UUID_RE.test(examId)) return { ok: false, error: "İmtahan tapılmadı." };
 
   // Price + published check come from the DB (getExamById returns published only).
   const exam = await getExamById(examId);
@@ -136,9 +196,17 @@ export async function submitPurchase(formData: FormData): Promise<ActionResult> 
     .single();
 
   if (error) {
-    // Clean up an orphaned receipt if the insert failed.
-    if (receiptPath) {
-      await supabase.storage.from("receipts").remove([receiptPath]);
+    /**
+     * Clean up an orphaned receipt if the insert failed. This MUST use the
+     * service role: the `receipts` bucket deliberately has no student DELETE
+     * policy, so a student cannot remove a receipt they have already submitted
+     * as evidence. With the cookie client this call failed silently and the
+     * orphaned file stayed in the bucket forever. The path is one we just built
+     * from the session user id, so the service role is not being handed
+     * client-controlled input.
+     */
+    if (receiptPath && isServiceRoleConfigured) {
+      await createAdminClient().storage.from("receipts").remove([receiptPath]);
     }
     // 23505 = unique violation → an active (pending/approved) request exists.
     if ((error as { code?: string }).code === "23505") {
@@ -164,12 +232,14 @@ export async function submitPurchase(formData: FormData): Promise<ActionResult> 
  */
 export async function startAttempt(examId: string): Promise<ActionResult> {
   if (!isSupabaseConfigured || !isServiceRoleConfigured) return notReady();
+  if (!UUID_RE.test(String(examId ?? ""))) {
+    return { ok: false, error: "İmtahan tapılmadı." };
+  }
+
+  const session = await verifiedUser();
+  if (!session.ok) return { ok: false, error: session.error };
+  const userId = session.id;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Əvvəlcə daxil olun." };
-  const userId = user.id;
 
   const exam = await getExamById(examId);
   if (!exam) return { ok: false, error: "İmtahan tapılmadı." };
@@ -228,6 +298,9 @@ export async function submitAttempt(
   answers: Record<string, number>,
 ): Promise<ActionResult> {
   if (!isSupabaseConfigured || !isServiceRoleConfigured) return notReady();
+  if (!UUID_RE.test(String(attemptId ?? ""))) {
+    return { ok: false, error: "Cəhd tapılmadı." };
+  }
   const userId = await sessionUserId();
   if (!userId) return { ok: false, error: "Əvvəlcə daxil olun." };
 
@@ -247,10 +320,19 @@ export async function submitAttempt(
     return { ok: true, id: attemptId };
   }
 
-  // Sanitize client answers: keep only integer choice indices.
+  /**
+   * Sanitize client answers before they are stored as jsonb. Keys must look
+   * like question ids and values must be small non-negative integers, so a
+   * crafted payload cannot stuff arbitrary keys/objects into the `answers`
+   * column (which is later read back and rendered on the review page), and the
+   * row size stays bounded. Grading ignores unknown ids regardless — this is
+   * about what gets persisted.
+   */
   const clean: Record<string, number> = {};
   for (const [qid, choice] of Object.entries(answers ?? {})) {
-    if (typeof choice === "number" && Number.isInteger(choice) && choice >= 0) {
+    if (Object.keys(clean).length >= 500) break;
+    if (!UUID_RE.test(qid)) continue;
+    if (typeof choice === "number" && Number.isInteger(choice) && choice >= 0 && choice < 100) {
       clean[qid] = choice;
     }
   }

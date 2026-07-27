@@ -10,9 +10,9 @@
 /** Müəllim bölməsi. Real ad, vəzifə, bioqrafiya və foto ilə əvəz edin. */
 export const TEACHER = {
   /** Müəllimin adı — real ad ilə əvəz edin. */
-  name: "Müəllimin adı",
+  name: "Camal Qədirov",
   /** Qısa vəzifə/başlıq. */
-  title: "Riyaziyyat müəllimi",
+  title: "Riyaziyyat Olimpiada müəllimi",
   /**
    * Müəllimin fotosu (`/public` qovluğundan). Hazırda `hero-image.png` istifadə
    * olunur; başqa şəkil üçün yolu dəyişin. Boş qaldıqda zərif yer tutucu görünür.
@@ -20,17 +20,17 @@ export const TEACHER = {
   photo: "/hero-image.png",
   /** Bioqrafiya abzasları — real mətnlə əvəz edin (uydurma nailiyyət yazmayın). */
   bio: [
-    "Bu bölmə müəllim haqqında qısa bioqrafiya üçün nəzərdə tutulub. Riyaziyyata yanaşma, tədris üslubu və tələbələrə nəyi öyrətməyi hədəflədiyi barədə bir neçə cümlə buraya əlavə oluna bilər.",
-    "Real məlumatı (təhsil, təcrübə, maraq dairəsi) daxil edərkən yalnız doğru faktları yazın — platformanın etibarlılığı buradan başlayır.",
+    "Camal Qədirov, riyaziyyat təhsili sahəsində 10 ildən çox təcrübəyə malikdir. O, tələbələrə riyazi düşüncə və problem həll etmə bacarıqlarını inkişaf etdirməkdə kömək edir.",
+    "Onun məqsədi, şagirdlərin analitik bacarıqlarını gücləndirmək və imtahanlarda uğur qazanmalarıdır. Camal müəllimin şagirdləri bir çox yerli və beynəlxalq riyaziyyat olimpiadalarında uğur qazanırlar.",
   ],
 } as const;
 
 /** Ana səhifə üçün əsas mətnlər. İstədiyiniz kimi dəyişin. */
 export const PLATFORM = {
   eyebrow: "Riyaziyyat təhsil platforması",
-  headline: "Daha çətin məşq et. Daha dərin düşün. Daha yaxşı həll et.",
+  headline: "RFO Olimpiada Hazırlıq Platforması",
   subheadline:
-    "Diqqətlə hazırlanmış imtahanlar, məsələlər və pulsuz təhsil materialları — məsələ həlli bacarığını inkişaf etdirmək istəyən tələbələr üçün.",
+    "Diqqətlə hazırlanmış imtahanlar, məsələlər və pulsuz təhsil materialları — məsələ həlli bacarığını inkişaf etdirmək istəyən şagirdlər üçün.",
   /** "Necə işləyir?" addımları. */
   steps: [
     {

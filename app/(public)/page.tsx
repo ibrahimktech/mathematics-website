@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getPublishedPosts } from "@/lib/posts";
 import { getFeaturedExams } from "@/lib/exams";
 import { SITE, absoluteUrl } from "@/lib/site";
+import { jsonLdScript } from "@/lib/json-ld";
 import { PlatformHero } from "@/components/platform/PlatformHero";
 import { StartPracticingBand } from "@/components/platform/StartPracticingBand";
 import { PlatformAbout } from "@/components/platform/PlatformAbout";
@@ -53,7 +54,7 @@ export default async function HomePage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
 
       <PlatformHero />

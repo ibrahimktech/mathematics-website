@@ -13,15 +13,18 @@ const SALT =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   "antg-analytics-fallback-salt";
 
-/** First hop in x-forwarded-for is the real client IP behind the platform proxy. */
-export function getClientIp(headers: Headers): string {
-  const xff = headers.get("x-forwarded-for");
-  if (xff) {
-    const first = xff.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  return headers.get("x-real-ip")?.trim() || "0.0.0.0";
-}
+/**
+ * Client IP, resolved from headers our infrastructure controls.
+ *
+ * This used to read the LEFT-most `x-forwarded-for` entry, which is the part of
+ * the header a client supplies. Anyone could send a fresh random value per
+ * request and appear as a new visitor every time, inflating "unique visitors"
+ * and defeating the per-day de-duplication. `lib/security/request.ts` prefers
+ * proxy-set headers and counts XFF from the trusted (right-hand) end instead.
+ *
+ * Re-exported here so existing analytics callers keep working unchanged.
+ */
+export { getClientIp } from "@/lib/security/request";
 
 export function hashIp(ip: string): string {
   return createHash("sha256").update(`${SALT}:${ip}`).digest("hex");

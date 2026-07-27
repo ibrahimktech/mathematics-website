@@ -7,7 +7,17 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin", "/axtar", "/panel", "/daxil-ol", "/qeydiyyat"],
+        // The password-reset pages are reached with a one-time recovery token
+        // in the URL — they must never be crawled, indexed or cached.
+        disallow: [
+          "/admin",
+          "/axtar",
+          "/panel",
+          "/daxil-ol",
+          "/qeydiyyat",
+          "/sifre-sifirlama",
+          "/sifre-yenile",
+        ],
       },
     ],
     sitemap: `${SITE.url}/sitemap.xml`,

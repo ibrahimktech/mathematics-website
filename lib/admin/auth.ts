@@ -29,7 +29,7 @@ export async function isAdmin(supabase: SupabaseClient): Promise<boolean> {
 /**
  * Guard for admin **pages / layouts** (Server Components). Enforces the app's
  * redirect policy and returns the admin's identity:
- *   - not signed in           → /admin/login
+ *   - not signed in           → /daxil-ol (the shared login; no admin-only page)
  *   - signed in, not an admin  → /
  *
  * This is the authoritative server-side gate (the Data Access Layer). The
@@ -38,12 +38,12 @@ export async function isAdmin(supabase: SupabaseClient): Promise<boolean> {
  */
 export async function requireAdminPage(): Promise<AdminUser> {
   // Fail closed before setup: no config means nobody can be an admin.
-  if (!isSupabaseConfigured) redirect("/admin/login");
+  if (!isSupabaseConfigured) redirect("/daxil-ol");
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/admin/login");
+  if (!user) redirect("/daxil-ol?redirect=/admin/dashboard");
   const { data: adminFlag, error } = await supabase.rpc("is_admin");
   if (error || adminFlag !== true) redirect("/");
   return { id: user.id, email: user.email ?? null };
