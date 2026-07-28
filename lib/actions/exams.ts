@@ -89,7 +89,6 @@ function revalidateExamPublic() {
   revalidatePath("/");
   revalidatePath("/imtahanlar");
   revalidatePath("/imtahanlar/[slug]", "page");
-  revalidatePath("/meseleler");
   revalidatePath("/sitemap.xml");
   revalidatePath("/admin/exams");
 }

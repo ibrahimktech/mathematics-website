@@ -91,12 +91,6 @@ export async function getFeaturedExams(limit = 3): Promise<Exam[]> {
   return exams.filter((e) => e.featured).slice(0, limit);
 }
 
-/** Free published practice sets (surfaced on /meseleler). */
-export async function getFreeExams(): Promise<Exam[]> {
-  const exams = await getExams();
-  return exams.filter((e) => e.price === 0);
-}
-
 /** A single published exam by slug (null if missing/unpublished). */
 export async function getExamBySlug(slug: string): Promise<Exam | null> {
   if (!isSupabaseConfigured) return null;

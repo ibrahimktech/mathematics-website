@@ -9,7 +9,7 @@ import {
 } from "@/lib/exams";
 import { cn } from "@/lib/utils";
 
-/** Exam card, reused on the homepage, /imtahanlar, /meseleler and /panel. */
+/** Exam card, reused on the homepage, /imtahanlar and /panel. */
 export function ExamCard({ exam, index }: { exam: Exam; index?: number }) {
   const free = exam.price === 0;
   return (

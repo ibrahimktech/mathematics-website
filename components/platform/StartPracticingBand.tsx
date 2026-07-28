@@ -20,7 +20,7 @@ export function StartPracticingBand() {
             <ArrowRight className="size-4" />
           </Link>
           <Link
-            href="/meseleler"
+            href="/imtahanlar"
             className="text-muted-foreground hover:text-primary text-sm font-semibold transition-colors"
           >
             Sınaqlarımızda özünü yoxla!

@@ -77,7 +77,7 @@ platform. Everything exam-related is **database-driven** (admin-created); nothin
 is hardcoded. Routing (all Azerbaijani):
 - `/` — platform homepage. `/bloq` — blog landing (old `/`; article URLs unchanged).
 - `/imtahanlar` + `/imtahanlar/[slug]` — exam catalogue (published only, slug URLs).
-- `/meseleler` — free practice. `/qeydiyyat`,`/daxil-ol` (auth), `/panel` (dashboard).
+- `/qeydiyyat`,`/daxil-ol` (auth), `/panel` (dashboard).
 - `/panel/odenis/[id]` — manual bank-transfer payment page (focused).
 - Admin: `/admin/exams`, `/admin/purchases`, `/admin/settings` (+ blog admin).
 
@@ -169,7 +169,10 @@ sources of truth (tables, RLS, storage buckets `article-images` public +
 `receipts` private, SECURITY DEFINER `is_admin`/`has_exam_access`/
 `get_exam_questions`/`blog_view_*`). The service-role key **cannot run DDL** —
 apply schema by pasting SQL into the Supabase SQL editor. `supabase/reset-exams.sql`
-wipes exam/sales data (keeps users/blog/settings). Domain types: `lib/types.ts`,
+wipes exam/sales data (keeps users/blog/settings); `supabase/reset-sales.sql` is
+the narrow version — purchases + the `exam_access` they granted only, so exams and
+accounts survive (use it to clear test revenue from the analytics). Both leave the
+`receipts` bucket alone: run `node scripts/clear-receipts.mjs` for that. Domain types: `lib/types.ts`,
 `lib/exams/types.ts`, `lib/student/types.ts`.
 
 ## Security (`lib/security/*`)

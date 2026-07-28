@@ -9,7 +9,6 @@ export type NavItem = {
 
 export const PRIMARY_NAV: readonly NavItem[] = [
   { href: "/imtahanlar", label: "İmtahanlar" },
-  { href: "/meseleler", label: "Məsələlər" },
   {
     href: "/bloq",
     label: "Bloq",
