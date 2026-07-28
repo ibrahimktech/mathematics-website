@@ -130,6 +130,17 @@ is hardcoded. Routing (all Azerbaijani):
 - **Student auth is client-side** (navbar reacts via `onAuthStateChange`).
   `requireUser` + `app/(public)/panel/layout.tsx` gate `/panel/*`; middleware
   matches `/admin/*`+`/panel/*`. `/panel` uses `.app-ui` (sans-serif).
+- **Question images are just LaTeX.** There is no image column and no second
+  storage system: `components/admin/LatexImageField` (used for the prompt and
+  the explanation in `QuestionEditor`) uploads via `uploadExamImage`
+  (`lib/upload.ts`) into the **same `article-images` bucket** as the blog, under
+  an `exam-questions/<year>/<uuid>.<ext>` prefix, and writes
+  `\includegraphics{<public URL>}` into the text — which `lib/latex/render.ts`
+  already renders (URL-sanitized) in the admin preview, the runner and the
+  results page. Storage RLS (`is_admin()`) is the real upload gate; the uploader
+  additionally sniffs magic bytes and derives the extension + Content-Type from
+  them, never from the filename. Sizing: `.tex .latex-inline-img` in
+  `globals.css` (`.tex-compact` in the admin list).
 - **Exam titles use a bold SANS-SERIF** via the `.exam-title` class (Inter),
   overriding the display serif on exam cards/detail/admin/runner. Math/LaTeX
   untouched. Exam catalogue keeps a denormalized `exams.question_count` (trigger)

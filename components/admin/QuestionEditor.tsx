@@ -17,7 +17,7 @@ import { Tex } from "@/components/platform/Tex";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { LatexImageField } from "./LatexImageField";
 import {
   saveQuestion,
   deleteQuestion,
@@ -54,6 +54,10 @@ function toDraft(q: AdminExamQuestion): Draft {
  * `router.refresh()` so the UI reflects the DB truth. LaTeX is previewed live
  * with the same `Tex` renderer used on the public site → what you preview is
  * what students see.
+ *
+ * Images live inside the same LaTeX strings as `\includegraphics{<public URL>}`
+ * (see `LatexImageField`), so there is no second content format and no schema
+ * change — a question is still just prompt + choices + explanation.
  */
 export function QuestionEditor({
   examId,
@@ -150,7 +154,8 @@ export function QuestionEditor({
             Suallar
           </h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            {questions.length} sual · LaTeX dəstəklənir ($…$ və ya \[ … \]).
+            {questions.length} sual · LaTeX ($…$ və ya \[ … \]) və şəkil
+            dəstəklənir.
           </p>
         </div>
         {openId !== "new" && (
@@ -216,7 +221,7 @@ export function QuestionEditor({
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <Tex className="text-foreground text-sm font-medium">
+                  <Tex className="tex-compact text-foreground text-sm font-medium">
                     {q.prompt}
                   </Tex>
                   <ul className="mt-2 space-y-1">
@@ -323,14 +328,13 @@ function QuestionForm({
     <div className="border-primary/30 bg-card ring-primary/10 rounded-xl border p-4 ring-2 sm:p-5">
       <div className="grid gap-4 lg:grid-cols-2">
         <div>
-          <Label htmlFor="q-prompt">Sual mətni (LaTeX)</Label>
-          <Textarea
+          <LatexImageField
             id="q-prompt"
+            label="Sual mətni (LaTeX)"
             value={draft.prompt}
-            onChange={(e) => setDraft({ ...draft, prompt: e.target.value })}
+            onChange={(v) => setDraft({ ...draft, prompt: v })}
             rows={3}
             placeholder="Məsələn: $x^2 - 5x + 6 = 0$ tənliyinin köklərinin cəmi neçədir?"
-            className="mt-1.5 font-mono text-sm"
           />
           <p className="text-muted-foreground mt-1.5 text-xs">Önizləmə:</p>
           <div className="border-border bg-background mt-1 min-h-9 rounded-md border p-2.5">
@@ -389,14 +393,13 @@ function QuestionForm({
       </div>
 
       <div className="mt-4">
-        <Label htmlFor="q-explanation">Həll / izah (istəyə bağlı)</Label>
-        <Textarea
+        <LatexImageField
           id="q-explanation"
+          label="Həll / izah (istəyə bağlı)"
           value={draft.explanation}
-          onChange={(e) => setDraft({ ...draft, explanation: e.target.value })}
+          onChange={(v) => setDraft({ ...draft, explanation: v })}
           rows={2}
           placeholder="Nəticədən sonra tələbəyə göstərilir. LaTeX dəstəklənir."
-          className="mt-1.5 font-mono text-sm"
         />
       </div>
 

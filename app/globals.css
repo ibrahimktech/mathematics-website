@@ -153,6 +153,24 @@
   font-family: var(--font-sans);
   line-height: 1.6;
 }
+/* Images inside a short LaTeX fragment (a question prompt, an answer choice or
+   the admin preview) sit on their own line and are capped so a large upload
+   can't dominate the card — and so they fit a phone screen. */
+.tex .latex-inline-img,
+.tex .latex-figure img {
+  display: block;
+  max-width: min(100%, 28rem);
+  max-height: 20rem;
+  height: auto;
+  margin: 0.75rem 0;
+  border-radius: 0.375rem;
+}
+/* …and smaller still in the admin question list, which must stay scannable. */
+.tex-compact .latex-inline-img,
+.tex-compact .latex-figure img {
+  max-height: 7rem;
+  margin: 0.5rem 0;
+}
 
 /* ---------------------------------------------------------------------------
  * Exam titles/headings use a bold, modern SANS-SERIF (Inter) — clean, strong,
