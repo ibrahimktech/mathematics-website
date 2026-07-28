@@ -337,15 +337,25 @@
 .latex-article {
   font-family: var(--font-heading);
   color: #1a1a1a;
-  font-size: 1.05rem;
-  line-height: 1.8;
-  text-align: justify;
-  text-justify: inter-word;
+  /* Fluid measure: ~15.7px on a phone, 16.8px from tablet up. */
+  font-size: clamp(0.98rem, 0.93rem + 0.25vw, 1.05rem);
+  line-height: 1.7;
+  /* Justification needs a wide enough column: on a phone it opens rivers of
+     whitespace between words, so it is only switched on from `sm` up. */
+  text-align: left;
   hyphens: auto;
   overflow-wrap: break-word;
 }
 .latex-article p {
   margin: 0 0 0.9rem;
+}
+
+@media (min-width: 640px) {
+  .latex-article {
+    line-height: 1.8;
+    text-align: justify;
+    text-justify: inter-word;
+  }
 }
 
 /* Title block */
@@ -370,12 +380,17 @@
 }
 
 /* Abstract */
+/* Full width on a phone; indented from both sides once there is room. Alignment
+   is inherited from `.latex-article` so it stays left-aligned on small screens. */
 .latex-abstract {
   margin: 0 auto 2rem;
-  max-width: 88%;
   font-size: 0.97rem;
   color: #374151;
-  text-align: justify;
+}
+@media (min-width: 640px) {
+  .latex-abstract {
+    max-width: 88%;
+  }
 }
 .latex-abstract-title {
   text-align: center;
@@ -385,13 +400,13 @@
 
 /* Sections */
 .latex-section {
-  font-size: 1.45rem;
+  font-size: clamp(1.28rem, 1.15rem + 0.6vw, 1.45rem);
   font-weight: 700;
   margin: 2rem 0 0.7rem;
   line-height: 1.3;
 }
 .latex-subsection {
-  font-size: 1.2rem;
+  font-size: clamp(1.1rem, 1.03rem + 0.3vw, 1.2rem);
   font-weight: 700;
   margin: 1.5rem 0 0.5rem;
 }
@@ -499,6 +514,21 @@
 }
 .latex-fig-label {
   font-weight: 600;
+}
+
+/* On a phone, the horizontally scrollable blocks (display math, tables) bleed
+   out into the page's side padding so a long equation gets the full screen
+   width to scroll in, while the prose keeps its margins. The host opts in by
+   setting `--latex-bleed` to its own horizontal padding; the fallback keeps it
+   at 0 for the editor preview and any other embed. (Declaring the default in a
+   rule here would not work: unlayered CSS outranks Tailwind's utilities layer,
+   so it would beat the host's `[--latex-bleed:…]` utility.) */
+@media (max-width: 639px) {
+  .latex-eq,
+  .latex-table-wrap {
+    margin-inline: calc(-1 * var(--latex-bleed, 0px));
+    padding-inline: var(--latex-bleed, 0px);
+  }
 }
 
 /* Misc */

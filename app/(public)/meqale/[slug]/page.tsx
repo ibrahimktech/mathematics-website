@@ -93,7 +93,7 @@ export default async function ArticlePage({
   };
 
   return (
-    <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+    <article className="mx-auto max-w-3xl px-6 py-12 sm:px-8 lg:max-w-[54rem]">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
@@ -144,7 +144,12 @@ export default async function ArticlePage({
         </div>
       )}
 
-      <LatexContent content={post.content} className="mt-10" />
+      {/* --latex-bleed matches this page's mobile side padding (px-6), letting
+          wide equations/tables scroll edge-to-edge on phones. */}
+      <LatexContent
+        content={post.content}
+        className="mt-10 [--latex-bleed:1.5rem]"
+      />
 
       {post.tags.length > 0 && (
         <div className="mt-10 flex flex-wrap gap-2">
