@@ -19,6 +19,7 @@ import {
   ExternalLink,
   LineChart,
   BarChart3,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/lib/actions/auth";
@@ -33,6 +34,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/dashboard", label: "İdarə paneli", icon: LayoutDashboard },
       { href: "/admin/purchases", label: "Ödənişlər", icon: Receipt },
+      { href: "/admin/users", label: "İstifadəçilər", icon: Users },
     ],
   },
   {
