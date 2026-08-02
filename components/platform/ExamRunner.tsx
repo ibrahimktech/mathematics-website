@@ -136,8 +136,9 @@ export function ExamRunner({
         })}
       </div>
 
-      {/* Question */}
-      <div className="border-border bg-card mt-6 rounded-2xl border p-5 sm:p-7">
+      {/* Question — `exam-watermark` paints the repeating site watermark behind
+          the prompt and the choices (see `.exam-watermark` in globals.css). */}
+      <div className="exam-watermark border-border bg-card mt-6 rounded-2xl border p-5 sm:p-7">
         <span className="text-primary text-xs font-semibold tracking-wide uppercase">
           Sual {current + 1}
         </span>

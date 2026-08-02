@@ -106,7 +106,10 @@ export default async function ResultPage({
           const theirIndex = attempt.answers?.[q.id];
           const isCorrect = theirIndex === correctIndex;
           return (
-            <div key={q.id} className="border-border bg-card rounded-2xl border p-5">
+            <div
+              key={q.id}
+              className="exam-watermark border-border bg-card rounded-2xl border p-5"
+            >
               <div className="flex items-start justify-between gap-3">
                 <span className="text-primary text-xs font-semibold tracking-wide uppercase">
                   Sual {qi + 1}

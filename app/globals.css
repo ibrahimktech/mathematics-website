@@ -185,6 +185,70 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * Question watermark — the faint repeating "antgolimpiada.com" behind EXAM
+ * QUESTION CARDS ONLY (the runner and the answer review). Applied via
+ * `.exam-watermark`; never on blog, admin or navigation surfaces.
+ *
+ * One `::before` layer holds the whole pattern (no extra DOM): a tiled SVG
+ * data-URI whose single 13px label is already rotated -35°, so the browser
+ * only repeats one small raster instead of compositing a rotated element.
+ * The 190x110 tile is larger than the rotated label's bounding box (~105x79),
+ * so the text never crosses a tile edge and the repeat is seamless.
+ *
+ * Clipping is the layer itself: `inset: 0` + `border-radius: inherit` keeps it
+ * inside the card's rounded box, so the card needs NO `overflow: hidden` (which
+ * would cut off wide KaTeX display math on phones).
+ * ------------------------------------------------------------------------- */
+.exam-watermark {
+  position: relative;
+  /* Keep the z-indexes below local to the card so it can't reorder itself
+     against the sticky exam header or the submit dialog. */
+  isolation: isolate;
+}
+
+.exam-watermark::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='190' height='110' viewBox='0 0 190 110'%3E%3Ctext x='95' y='55' dy='.35em' text-anchor='middle' transform='rotate(-35 95 55)' font-family='Arial, Helvetica, sans-serif' font-size='13' font-weight='700' fill='%23111827'%3Eantgolimpiada.com%3C/text%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-position: center;
+  /* Tile drawn 20% over its 190x110 intrinsic size. Scaling the TILE (not just
+     the font) enlarges the label and its spacing together, so the seamless fit
+     and the clearance between neighbouring labels are preserved exactly. */
+  background-size: 228px 132px;
+}
+
+/* Question content always paints above the watermark. `position: relative`
+   with no offsets changes nothing about the layout. */
+.exam-watermark > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Narrower cards get a proportionally smaller tile so the pattern still
+   repeats several times across a phone screen. */
+@media (max-width: 640px) {
+  .exam-watermark::before {
+    background-size: 182.4px 105.6px;
+  }
+}
+
+/* Windows High Contrast forces its own colours and would render the watermark
+   as opaque text over the question. */
+@media (forced-colors: active) {
+  .exam-watermark::before {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
  * Subtle, tasteful motion. Hover + a single fade/rise on first paint only.
  * Respects prefers-reduced-motion.
  * ------------------------------------------------------------------------- */
