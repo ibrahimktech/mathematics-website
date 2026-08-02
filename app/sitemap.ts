@@ -2,14 +2,16 @@ import type { MetadataRoute } from "next";
 import { SITE, absoluteUrl } from "@/lib/site";
 import { getAllPublishedSlugs } from "@/lib/posts";
 import { getCategories } from "@/lib/categories";
+import { getArchives } from "@/lib/archives";
 import { getExams } from "@/lib/exams";
 
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [posts, categories, exams] = await Promise.all([
+  const [posts, categories, archives, exams] = await Promise.all([
     getAllPublishedSlugs(),
     getCategories(),
+    getArchives(),
     getExams(),
   ]);
   const now = new Date();
@@ -55,6 +57,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       changeFrequency: "weekly" as const,
       priority: 0.5,
+    })),
+    ...archives.map((a) => ({
+      url: absoluteUrl(`/arxiv/${a.period}`),
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: 0.3,
     })),
   ];
 }
