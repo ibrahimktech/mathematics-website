@@ -6,10 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient, isServiceRoleConfigured } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getExamById } from "@/lib/exams";
-import { gradeExam } from "@/lib/exams/grade";
+import { finalizeAttempt, persistAttemptAnswers } from "@/lib/exams/submit";
 import { getClientIp } from "@/lib/security/request";
 import { consume, RATE_RULES } from "@/lib/security/rate-limit";
 import { logSecurityEvent } from "@/lib/security/log";
+import { ATTEMPTS_EXHAUSTED_MESSAGE, MAX_EXAM_ATTEMPTS } from "@/lib/student/status";
 import type { ActionResult } from "@/lib/actions/types";
 
 /**
@@ -223,12 +224,43 @@ export async function submitPurchase(formData: FormData): Promise<ActionResult> 
   return { ok: true, id: inserted.id as string };
 }
 
+/** The open attempt for (user, exam), or null. Service-role read. */
+async function openAttemptId(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  examId: string,
+): Promise<string | null> {
+  const { data } = await admin
+    .from("exam_attempts")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("exam_id", examId)
+    .eq("status", "in_progress")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data?.id as string | undefined) ?? null;
+}
+
 /**
  * Start (or resume) an attempt. Verifies (a) the exam is published, (b) the
  * caller HAS access — free OR an exam_access grant — via `has_exam_access` (the
- * same DB truth the question-delivery function uses), then creates an
- * in-progress attempt. The attempt row is written with the SERVICE ROLE so
- * `total_count`/score can't be forged, but the user_id is the session user.
+ * same DB truth the question-delivery function uses), (c) the caller has an
+ * attempt LEFT, then creates an in-progress attempt. The attempt row is written
+ * with the SERVICE ROLE so `total_count`/score can't be forged, but the user_id
+ * is the session user.
+ *
+ * ATTEMPT LIMIT — two layers, and the second one is the real gate:
+ *   1. the count below, which exists so the student gets a clear message; and
+ *   2. `exam_attempts_enforce_limit`, a BEFORE INSERT trigger in
+ *      `supabase/exam-attempt-limit.sql` that refuses the row outright and
+ *      assigns `attempt_number` itself.
+ * Only (2) is race-safe: two simultaneous clicks both read "1 used" here, then
+ * collide on the unique (user_id, exam_id, attempt_number) index and exactly one
+ * insert survives. The loser is resolved back to the attempt that won, so a
+ * double-click starts one attempt rather than burning two or erroring out.
+ *
+ * RESUMING an open attempt never consumes another one — starting is what costs.
  */
 export async function startAttempt(examId: string): Promise<ActionResult> {
   if (!isSupabaseConfigured || !isServiceRoleConfigured) return notReady();
@@ -259,17 +291,21 @@ export async function startAttempt(examId: string): Promise<ActionResult> {
 
   const admin = createAdminClient();
 
-  // Resume an open attempt if one exists.
-  const { data: open } = await admin
+  // Resume an open attempt if one exists — free, and it must win over the limit
+  // check so the last attempt can still be finished after a reload.
+  const open = await openAttemptId(admin, userId, exam.id);
+  if (open) return { ok: true, id: open };
+
+  // Every attempt ever made for this exam counts, whatever its status.
+  const { count, error: countErr } = await admin
     .from("exam_attempts")
-    .select("id")
+    .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
-    .eq("exam_id", exam.id)
-    .eq("status", "in_progress")
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (open) return { ok: true, id: open.id as string };
+    .eq("exam_id", exam.id);
+  if (countErr) return { ok: false, error: "Başlamaq alınmadı." };
+  if ((count ?? 0) >= MAX_EXAM_ATTEMPTS) {
+    return { ok: false, error: ATTEMPTS_EXHAUSTED_MESSAGE };
+  }
 
   const { data: created, error } = await admin
     .from("exam_attempts")
@@ -281,83 +317,76 @@ export async function startAttempt(examId: string): Promise<ActionResult> {
     })
     .select("id")
     .single();
-  if (error || !created) return { ok: false, error: "Başlamaq alınmadı." };
+
+  if (error || !created) {
+    /**
+     * The database refused it. Either a concurrent click won the race (unique
+     * violation on the ordinal / the one-open-attempt index) or the limit
+     * trigger fired. Re-read: if an attempt is now open it is the one that won
+     * and we hand it back; otherwise the limit is genuinely reached.
+     */
+    const winner = await openAttemptId(admin, userId, exam.id);
+    if (winner) return { ok: true, id: winner };
+
+    const code = (error as { code?: string } | null)?.code;
+    const message = (error as { message?: string } | null)?.message ?? "";
+    if (code === "23505" || message.includes("attempt limit")) {
+      return { ok: false, error: ATTEMPTS_EXHAUSTED_MESSAGE };
+    }
+    return { ok: false, error: "Başlamaq alınmadı." };
+  }
 
   revalidatePath("/panel");
+  revalidatePath("/panel/imtahanlar");
   return { ok: true, id: created.id as string };
 }
 
 /**
- * Submit answers for an attempt. Re-verifies the attempt belongs to the session
- * user (never trusts the attempt id alone), grades on the server against the DB
- * answer key (service role, never exposed), and writes the score with the
- * service role.
+ * AUTOSAVE — store the current answers on an open attempt without submitting.
+ * Called on a debounce whenever an answer changes and on a periodic tick, so a
+ * browser that dies mid-exam loses nothing. Deliberately does NOT revalidate any
+ * path: a router refresh under a running exam would be disruptive.
+ */
+export async function saveAttemptAnswers(
+  attemptId: string,
+  answers: Record<string, number>,
+): Promise<ActionResult> {
+  if (!isSupabaseConfigured || !isServiceRoleConfigured) return notReady();
+  const userId = await sessionUserId();
+  if (!userId) return { ok: false, error: "Əvvəlcə daxil olun." };
+
+  // Generous, but bounded: a scripted client cannot use autosave as a write loop.
+  if (!consume(`attempt-save:${userId}`, RATE_RULES.attemptSave).allowed) {
+    return { ok: false, error: "Çox sayda sorğu. Bir az sonra yenidən cəhd edin." };
+  }
+
+  const res = await persistAttemptAnswers(userId, attemptId, answers);
+  return res.ok ? { ok: true, id: res.attemptId } : { ok: false, error: res.error };
+}
+
+/**
+ * Submit answers for an attempt. Ownership re-check, sanitizing, server-side
+ * grading against the DB answer key and the race-safe write all live in
+ * `finalizeAttempt` (lib/exams/submit.ts), shared with the unload beacon at
+ * `/api/exam/auto-submit` so the two paths can never diverge.
+ *
+ * Submitting does NOT return the attempt to the student's balance — it is
+ * already spent, and the count is on attempts started, not finished.
  */
 export async function submitAttempt(
   attemptId: string,
   answers: Record<string, number>,
 ): Promise<ActionResult> {
   if (!isSupabaseConfigured || !isServiceRoleConfigured) return notReady();
-  if (!UUID_RE.test(String(attemptId ?? ""))) {
-    return { ok: false, error: "Cəhd tapılmadı." };
-  }
   const userId = await sessionUserId();
   if (!userId) return { ok: false, error: "Əvvəlcə daxil olun." };
 
-  const admin = createAdminClient();
-  const { data: attempt, error: readErr } = await admin
-    .from("exam_attempts")
-    .select("*")
-    .eq("id", attemptId)
-    .maybeSingle();
-  if (readErr || !attempt) return { ok: false, error: "Cəhd tapılmadı." };
-
-  // AUTHORIZATION: the attempt must belong to the authenticated user.
-  if (attempt.user_id !== userId) {
-    return { ok: false, error: "İcazə yoxdur." };
-  }
-  if (attempt.status === "completed") {
-    return { ok: true, id: attemptId };
-  }
-
-  /**
-   * Sanitize client answers before they are stored as jsonb. Keys must look
-   * like question ids and values must be small non-negative integers, so a
-   * crafted payload cannot stuff arbitrary keys/objects into the `answers`
-   * column (which is later read back and rendered on the review page), and the
-   * row size stays bounded. Grading ignores unknown ids regardless — this is
-   * about what gets persisted.
-   */
-  const clean: Record<string, number> = {};
-  for (const [qid, choice] of Object.entries(answers ?? {})) {
-    if (Object.keys(clean).length >= 500) break;
-    if (!UUID_RE.test(qid)) continue;
-    if (typeof choice === "number" && Number.isInteger(choice) && choice >= 0 && choice < 100) {
-      clean[qid] = choice;
-    }
-  }
-
-  const { correct, total, score } = await gradeExam(attempt.exam_id, clean);
-  const startedMs = new Date(attempt.started_at).getTime();
-  const durationSeconds = Math.max(0, Math.round((Date.now() - startedMs) / 1000));
-
-  const { error: writeErr } = await admin
-    .from("exam_attempts")
-    .update({
-      status: "completed",
-      score,
-      correct_count: correct,
-      total_count: total,
-      answers: clean,
-      finished_at: new Date().toISOString(),
-      duration_seconds: durationSeconds,
-    })
-    .eq("id", attemptId)
-    .eq("user_id", userId); // defense in depth
-  if (writeErr) return { ok: false, error: "Təqdim alınmadı." };
+  const res = await finalizeAttempt(userId, attemptId, answers);
+  if (!res.ok) return { ok: false, error: res.error };
 
   revalidatePath("/panel");
+  revalidatePath("/panel/imtahanlar");
   revalidatePath("/panel/neticeler");
   revalidatePath(`/panel/netice/${attemptId}`);
-  return { ok: true, id: attemptId };
+  return { ok: true, id: res.attemptId };
 }

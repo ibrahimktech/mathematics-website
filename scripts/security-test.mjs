@@ -7,9 +7,11 @@
  * only ever create their OWN pending purchase (never self-approve, never grant
  * themselves access, never forge a score), receipts are private, settings are
  * read-only to students, and the admin allow-list can't be self-joined. Also
- * checks that the approval transition is race-safe. Cleans everything up.
+ * checks that the approval transition is race-safe, and that the 2-attempts-per-
+ * exam limit holds against DIRECT API writes. Cleans everything up.
  *
- * Run (after applying supabase/exam-platform-schema.sql):
+ * Run (after applying supabase/exam-platform-schema.sql
+ *      and  supabase/exam-attempt-limit.sql):
  *   node scripts/security-test.mjs
  */
 import { readFileSync } from "node:fs";
@@ -67,7 +69,13 @@ const PNG_BYTES = Buffer.from(
   "hex",
 );
 
-const created = { examPub: null, examDraft: null, examFree: null };
+const created = {
+  examPub: null,
+  examDraft: null,
+  examFree: null,
+  examLimit: null,
+  examRace: null,
+};
 
 async function main() {
   console.log("\n=== Exam-platform authorization audit ===\n");
@@ -121,6 +129,10 @@ async function main() {
   created.examPub = await mk({});
   created.examDraft = await mk({ status: "draft" });
   created.examFree = await mk({ price: 0 });
+  // Two more free published exams, used only by the attempt-limit section so
+  // its counts are not disturbed by the attempts other sections create.
+  created.examLimit = await mk({ price: 0 });
+  created.examRace = await mk({ price: 0 });
 
   // Questions for the published paid exam (with SECRET correct answers).
   await admin.from("exam_questions").insert([
@@ -267,6 +279,132 @@ async function main() {
     check("student CANNOT read another student's attempts", (aList ?? []).length === 0);
   }
 
+  // ------------------------------------------------- attempt limit (max 2) --
+  /**
+   * The whole point of this section: every insert below uses the SERVICE ROLE,
+   * which bypasses RLS entirely. If the cap still holds here, then it cannot be
+   * beaten by a crafted REST call, a patched frontend, or a replayed action —
+   * because the rule lives in a BEFORE INSERT trigger, not in the application.
+   * Requires supabase/exam-attempt-limit.sql.
+   */
+  console.log("\nexam attempt limit (max 2 per student per exam):");
+  {
+    const { data: limitFn, error: limitFnErr } = await admin.rpc("max_exam_attempts");
+    const LIMIT = Number(limitFn ?? 2);
+    check(
+      "max_exam_attempts() exists (migration applied)",
+      !limitFnErr,
+      limitFnErr ? "apply supabase/exam-attempt-limit.sql" : `limit=${LIMIT}`,
+    );
+
+    const startAttempt = (userId, examId, extra = {}) =>
+      admin
+        .from("exam_attempts")
+        .insert({ user_id: userId, exam_id: examId, status: "in_progress", ...extra })
+        .select("id, attempt_number")
+        .single();
+
+    // --- sequential: attempts 1..LIMIT succeed, LIMIT+1 is refused ----------
+    const first = await startAttempt(B.id, created.examLimit);
+    check("attempt 1 is created", !first.error, first.error?.message ?? "");
+    check("attempt 1 is numbered 1", first.data?.attempt_number === 1, `n=${first.data?.attempt_number}`);
+
+    // Finish it, so the next start is a genuine new attempt and not a resume.
+    await admin
+      .from("exam_attempts")
+      .update({ status: "completed", score: 50, finished_at: new Date().toISOString() })
+      .eq("id", first.data?.id);
+
+    // A forged ordinal must be ignored — the trigger assigns it, not the caller.
+    const second = await startAttempt(B.id, created.examLimit, { attempt_number: 1 });
+    check("attempt 2 is created", !second.error, second.error?.message ?? "");
+    check(
+      "client-supplied attempt_number is OVERRIDDEN by the trigger",
+      second.data?.attempt_number === 2,
+      `n=${second.data?.attempt_number}`,
+    );
+    await admin
+      .from("exam_attempts")
+      .update({ status: "completed", score: 70, finished_at: new Date().toISOString() })
+      .eq("id", second.data?.id);
+
+    const third = await startAttempt(B.id, created.examLimit);
+    check(
+      `attempt ${LIMIT + 1} is REFUSED even with the service role`,
+      !!third.error,
+      third.error?.message ?? "INSERT SUCCEEDED — limit not enforced",
+    );
+
+    const { count: total } = await admin
+      .from("exam_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", B.id)
+      .eq("exam_id", created.examLimit);
+    check(`exactly ${LIMIT} attempt rows exist`, total === LIMIT, `rows=${total}`);
+
+    // --- the limit is PER EXAM, not per student ----------------------------
+    const other = await startAttempt(B.id, created.examFree);
+    check("a DIFFERENT exam still allows a fresh attempt", !other.error, other.error?.message ?? "");
+
+    // --- deleting attempts must not be a way to buy more -------------------
+    const del = await bC.from("exam_attempts").delete().eq("user_id", B.id).eq("exam_id", created.examLimit);
+    const { count: afterDel } = await admin
+      .from("exam_attempts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", B.id)
+      .eq("exam_id", created.examLimit);
+    check(
+      "student CANNOT delete attempts to reset the counter",
+      afterDel === LIMIT,
+      `rows=${afterDel}${del.error ? ` (${del.error.code})` : ""}`,
+    );
+
+    // --- reopening a graded attempt is also a reset ------------------------
+    await bC
+      .from("exam_attempts")
+      .update({ status: "in_progress", score: null })
+      .eq("user_id", B.id)
+      .eq("exam_id", created.examLimit);
+    const { data: statuses } = await admin
+      .from("exam_attempts")
+      .select("status")
+      .eq("user_id", B.id)
+      .eq("exam_id", created.examLimit);
+    check(
+      "student CANNOT reopen a completed attempt",
+      (statuses ?? []).every((s) => s.status === "completed"),
+      (statuses ?? []).map((s) => s.status).join(","),
+    );
+
+    // --- concurrency: hammering "Start" cannot mint extra attempts ---------
+    /**
+     * Fires LIMIT+2 inserts at once for a fresh (student, exam). Concurrent
+     * transactions all read the same count, so they collide on the unique
+     * (user_id, exam_id, attempt_number) index — which is exactly the desired
+     * failure direction: some inserts are rejected, never duplicated.
+     */
+    const burst = await Promise.all(
+      Array.from({ length: LIMIT + 2 }, () => startAttempt(A.id, created.examRace)),
+    );
+    const wins = burst.filter((r) => !r.error);
+    const { data: raceRows } = await admin
+      .from("exam_attempts")
+      .select("attempt_number")
+      .eq("user_id", A.id)
+      .eq("exam_id", created.examRace);
+    const numbers = (raceRows ?? []).map((r) => r.attempt_number);
+    check(
+      `${LIMIT + 2} simultaneous starts create at most ${LIMIT} attempts`,
+      (raceRows ?? []).length <= LIMIT && (raceRows ?? []).length >= 1,
+      `rows=${(raceRows ?? []).length}, inserts_ok=${wins.length}`,
+    );
+    check(
+      "no duplicate attempt_number survives the race",
+      new Set(numbers).size === numbers.length,
+      `numbers=[${numbers.join(",")}]`,
+    );
+  }
+
   // ------------------------------------------------------ platform_settings --
   console.log("\nplatform_settings (read-only to students):");
   if (await tableExists("platform_settings")) {
@@ -312,7 +450,7 @@ async function main() {
   // ------------------------------------------------------------------ cleanup --
   console.log("\ncleanup:");
   await admin.storage.from("receipts").remove([`${A.id}/receipt-${rand}.png`]).catch(() => {});
-  for (const id of [created.examPub, created.examDraft, created.examFree]) {
+  for (const id of Object.values(created)) {
     if (id) await admin.from("exams").delete().eq("id", id); // cascades questions/purchases/access/attempts
   }
   await admin.auth.admin.deleteUser(A.id);
@@ -325,7 +463,7 @@ async function main() {
 
 main().catch(async (e) => {
   console.error("\nERROR:", e.message);
-  for (const id of [created.examPub, created.examDraft, created.examFree]) {
+  for (const id of Object.values(created)) {
     if (id) await admin.from("exams").delete().eq("id", id).catch(() => {});
   }
   for (const u of [A, B]) if (u.id) await admin.auth.admin.deleteUser(u.id).catch(() => {});

@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/account/auth";
 import { getExamById } from "@/lib/exams";
 import { getStudentExamQuestions } from "@/lib/exams/questions";
 import { getMyInProgressAttempt } from "@/lib/student/queries";
+import { MAX_EXAM_ATTEMPTS } from "@/lib/student/status";
 import { ExamRunner } from "@/components/platform/ExamRunner";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,9 @@ export default async function TakeExamPage({
   if (!exam) notFound();
 
   // Must have an open attempt (created via the Start action, which verifies
-  // access). If not, send them to the exam entry to start it properly.
+  // access AND the remaining-attempts limit). If not, send them to the exam
+  // entry to start it properly — this URL can never start one by itself, so a
+  // student who has used every attempt cannot come back in through it.
   const attempt = await getMyInProgressAttempt(id);
   if (!attempt) redirect(`/panel/imtahanlar?exam=${id}`);
 
@@ -50,6 +53,10 @@ export default async function TakeExamPage({
     );
   }
 
+  // `?? null` normalizes the `undefined` this column reads back as until
+  // supabase/exam-attempt-limit.sql has been applied.
+  const attemptNumber = attempt.attempt_number ?? null;
+
   return (
     <ExamRunner
       examTitle={exam.title}
@@ -58,6 +65,8 @@ export default async function TakeExamPage({
       attemptId={attempt.id}
       startedAt={attempt.started_at}
       initialAnswers={attempt.answers ?? {}}
+      attemptNumber={attemptNumber}
+      attemptLimit={MAX_EXAM_ATTEMPTS}
     />
   );
 }

@@ -57,6 +57,17 @@ export const RATE_RULES = {
   },
   /** Purchase submissions (each may carry a 5 MB upload). */
   purchase: { limit: 5, windowMs: 10 * 60_000 },
+  /**
+   * Exam autosave. The runner debounces to roughly one write per answer change
+   * plus a slow periodic tick, so this is far above normal use — it only stops a
+   * scripted client turning autosave into a write loop.
+   */
+  attemptSave: { limit: 120, windowMs: 60_000 },
+  /**
+   * Unload auto-submit beacon. A page can only unload so often; anything past
+   * this is a script, and submitting is idempotent anyway.
+   */
+  attemptAutoSubmit: { limit: 30, windowMs: 60_000 },
   /** Analytics beacon — generous, just stops one client inflating counts. */
   viewBeacon: { limit: 120, windowMs: 60_000 },
 } satisfies Record<string, RateRule>;

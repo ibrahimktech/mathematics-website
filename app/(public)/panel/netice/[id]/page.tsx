@@ -7,6 +7,7 @@ import { getExamById } from "@/lib/exams";
 import { getStudentExamQuestions } from "@/lib/exams/questions";
 import { getReviewKey } from "@/lib/exams/grade";
 import { getMyAttemptById } from "@/lib/student/queries";
+import { MAX_EXAM_ATTEMPTS } from "@/lib/student/status";
 import { formatDate } from "@/lib/format";
 import { Tex } from "@/components/platform/Tex";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,16 @@ export default async function ResultPage({
                 {durationLabel(attempt.duration_seconds)}
               </span>
             </p>
+            {/* `typeof` (not `!== null`): the column is absent, so undefined,
+                until supabase/exam-attempt-limit.sql has been applied. */}
+            {typeof attempt.attempt_number === "number" && (
+              <p className="text-muted-foreground mt-1">
+                Cəhd:{" "}
+                <span className="text-foreground font-medium tabular-nums">
+                  {attempt.attempt_number}/{MAX_EXAM_ATTEMPTS}
+                </span>
+              </p>
+            )}
           </div>
         </div>
       </div>

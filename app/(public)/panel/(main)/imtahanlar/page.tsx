@@ -15,6 +15,7 @@ import {
 } from "@/lib/student/queries";
 import { computeExamState, examStatusChipClass, examStatusLabel } from "@/lib/student/status";
 import { ExamActionButton } from "@/components/platform/ExamActionButton";
+import { AttemptHistory } from "@/components/platform/AttemptHistory";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "İmtahanlarım", robots: { index: false, follow: false } };
@@ -59,8 +60,8 @@ export default async function DashboardExamsPage({
             purchases,
             attempts,
           );
-          const completedForExam = attempts
-            .filter((a) => a.exam_id === exam.id && a.status === "completed")
+          const completedForExam = state.examAttempts
+            .filter((a) => a.status === "completed")
             .sort(
               (a, b) =>
                 new Date(b.finished_at ?? b.started_at).getTime() -
@@ -120,6 +121,17 @@ export default async function DashboardExamsPage({
                     </span>
                   )}
                 </div>
+
+                {/* Attempt ledger — only meaningful once the exam is unlocked. */}
+                {state.owned && (
+                  <AttemptHistory
+                    className="mt-3"
+                    attempts={state.examAttempts}
+                    attemptsUsed={state.attemptsUsed}
+                    attemptsRemaining={state.attemptsRemaining}
+                    attemptLimit={state.attemptLimit}
+                  />
+                )}
               </div>
 
               <div className="shrink-0">
@@ -127,6 +139,9 @@ export default async function DashboardExamsPage({
                   examId={exam.id}
                   status={state.status}
                   completedAttemptId={completedAttemptId}
+                  attemptsUsed={state.attemptsUsed}
+                  attemptsRemaining={state.attemptsRemaining}
+                  attemptLimit={state.attemptLimit}
                 />
               </div>
             </div>

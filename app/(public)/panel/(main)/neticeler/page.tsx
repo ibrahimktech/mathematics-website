@@ -34,10 +34,11 @@ export default async function ResultsPage() {
 
       {completed.length ? (
         <div className="border-border mt-6 overflow-x-auto rounded-xl border">
-          <table className="w-full min-w-[36rem] text-sm">
+          <table className="w-full min-w-[40rem] text-sm">
             <thead>
               <tr className="border-border text-muted-foreground border-b text-left text-xs uppercase tracking-wide">
                 <th className="px-4 py-3 font-semibold">İmtahan</th>
+                <th className="px-4 py-3 font-semibold">Cəhd</th>
                 <th className="px-4 py-3 font-semibold">Tarix</th>
                 <th className="px-4 py-3 font-semibold">Bal</th>
                 <th className="px-4 py-3 font-semibold">Vaxt</th>
@@ -51,6 +52,11 @@ export default async function ResultsPage() {
                     <span className="text-foreground font-medium">
                       {examMap.get(a.exam_id)?.title ?? a.exam_id}
                     </span>
+                  </td>
+                  {/* Two attempts per exam are allowed, so results for the same
+                      exam are only distinguishable by their ordinal. */}
+                  <td className="text-muted-foreground px-4 py-3 tabular-nums">
+                    {a.attempt_number ?? "—"}
                   </td>
                   <td className="text-muted-foreground px-4 py-3">
                     {formatDate(a.finished_at ?? a.started_at)}
