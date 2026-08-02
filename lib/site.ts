@@ -6,7 +6,7 @@ export const SITE = {
   name: "ANTG Olimpiada",
   shortName: "ANTG",
   description:
-    "Olimpiada məsələləri, imtahanlar, həllər və riyazi ideyalar üçün riyaziyyat təhsil platforması.",
+    "Olimpiada sınaqları və riyazi bloqlar üçün riyaziyyat təhsil platforması.",
   url: (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(
     /\/$/,
     "",

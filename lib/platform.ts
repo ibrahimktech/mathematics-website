@@ -20,7 +20,7 @@ export const TEACHER = {
   photo: "/hero-image.png",
   /** Bioqrafiya abzasları — real mətnlə əvəz edin (uydurma nailiyyət yazmayın). */
   bio: [
-    "Camal Qədirov, riyaziyyat təhsili sahəsində 10 ildən çox təcrübəyə malikdir. O, tələbələrə riyazi düşüncə və problem həll etmə bacarıqlarını inkişaf etdirməkdə kömək edir.",
+    "Camal Qədirov, riyaziyyat təhsili sahəsində 10 ildən çox təcrübəyə malikdir. O, şagirdlərə riyazi düşüncə və problem həll etmə bacarıqlarını inkişaf etdirməkdə kömək edir.",
     "Onun məqsədi, şagirdlərin analitik bacarıqlarını gücləndirmək və imtahanlarda uğur qazanmalarıdır. Camal müəllimin şagirdləri bir çox yerli və beynəlxalq riyaziyyat olimpiadalarında uğur qazanırlar.",
   ],
 } as const;

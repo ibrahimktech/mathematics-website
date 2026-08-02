@@ -31,7 +31,24 @@ with `_` — underscore = Next private folder = 404).
 - **Public reads are cookie-less** (`lib/supabase/public.ts`) so public pages stay
   static/ISR (`export const revalidate = 300`). Mutations call `revalidatePath("/")`,
   `revalidatePath("/meqale/[slug]","page")`, etc. **Do NOT wrap reads in
-  `unstable_cache`.** Public data access: `lib/posts.ts`, `lib/categories.ts`.
+  `unstable_cache`.** Public data access: `lib/posts.ts`, `lib/categories.ts`,
+  `lib/archives.ts`.
+- **Blog archives are DERIVED, not stored.** There is no archives table: the
+  sidebar's month list comes from the `blog_archive_counts()` RPC
+  (`supabase/blog-archives.sql` — **apply it**, it is additive), which groups
+  published posts in Postgres and returns ~one row per month. Without it
+  `getArchives()` silently falls back to selecting the single `published_at`
+  column and bucketing in JS, so the sidebar works pre-migration but stops being
+  a DB aggregate — apply the SQL. Months are bucketed in **Asia/Baku** on both
+  sides: the RPC via the tz database, `lib/archives/period.ts` (pure,
+  client-safe, holds the "YYYY-MM" parse/label/range helpers) via the fixed +4
+  offset like `lib/analytics/time.ts`. `bakuMonthKey()` (what counts a post) and
+  `archiveRange()` (what the page selects) MUST stay in agreement or a counted
+  post won't be listed. Filtering is a route, `/arxiv/[period]` (e.g.
+  `/arxiv/2026-06`), mirroring `/kateqoriya/[slug]` so it stays ISR-able —
+  a `?archive=` search param on `/bloq` would force that static page dynamic.
+  Sidebar rows for categories and archives share one `FilterRow` in
+  `SidebarSections.tsx`, so the two lists can't drift visually.
 - **Admin reads use the cookie server client** (`lib/supabase/server.ts`); admin
   pages set `export const dynamic = "force-dynamic"`. Admin data: `lib/admin/queries.ts`.
 - **Auth/RLS (admin = allow-list, NOT just "authenticated"):** admins are the
@@ -119,6 +136,30 @@ is hardcoded. Routing (all Azerbaijani):
   re-verifies attempt ownership then grades server-side. A student can never read
   another student's purchases/access/attempts/receipt (RLS), self-approve, or
   self-grant (no write policies on `purchases.status`/`exam_access`).
+- **⚠️ REQUIRED: apply `supabase/exam-attempt-limit.sql`** (additive; does NOT
+  drop anything). **Max 2 attempts per student per exam**, and STARTING spends
+  one — an `in_progress` row counts exactly like a `completed` one, and nothing
+  ever refunds it. The enforcing copy of the limit is
+  `public.max_exam_attempts()` + the `exam_attempts_enforce_limit` BEFORE INSERT
+  trigger, which also ASSIGNS `exam_attempts.attempt_number` (a client value is
+  discarded). Because it is a trigger, the service role and a raw PostgREST call
+  are capped too. Race-safety comes from the unique
+  `(user_id, exam_id, attempt_number)` index, not from counting rows: two
+  simultaneous "Start" clicks collide and `startAttempt` resolves the loser back
+  to the attempt that won. `MAX_EXAM_ATTEMPTS` in `lib/student/status.ts` is a
+  DISPLAY-only mirror — keep it in step. Note the DB uses `completed` where the
+  spec says "submitted"; it is the same state (`finished_at` = submitted at).
+- **Leaving an exam submits it.** `ExamRunner` autosaves answers (debounced on
+  change + a periodic tick) via `saveAttemptAnswers`, warns through
+  `beforeunload` for close/refresh/off-site, and intercepts in-app `<a>` clicks
+  (capture phase) + Back (`popstate` sentinel) with its own dialog — Next's
+  router fires no unload event. On `pagehide` it `sendBeacon`s
+  `/api/exam/auto-submit` (a Server Action can't be called from a beacon), which
+  is only a transport wrapper: ownership check, sanitizing, grading and the
+  race-safe `status='in_progress'`-conditional write all live in
+  `lib/exams/submit.ts`, shared with `submitAttempt` so the two can't drift.
+  Incoming answers are MERGED over the autosaved ones, so a truncated beacon
+  never erases saved work. Submitting is idempotent.
 - **Admin authorization is the blog's model, reused unchanged:** `public.admins`
   allow-list + `is_admin()` (3 layers: middleware, `requireAdminPage()`, RLS).
   Every admin action re-checks `isAdmin(supabase)`. The client hook
@@ -178,7 +219,10 @@ is hardcoded. Routing (all Azerbaijani):
 `supabase/analytics-schema.sql` (blog_views + admin aggregate RPCs) are the
 sources of truth (tables, RLS, storage buckets `article-images` public +
 `receipts` private, SECURITY DEFINER `is_admin`/`has_exam_access`/
-`get_exam_questions`/`blog_view_*`). The service-role key **cannot run DDL** —
+`get_exam_questions`/`blog_view_*`), plus three additive patches applied on top:
+`supabase/security-hardening.sql`, `supabase/exam-attempt-limit.sql` and
+`supabase/blog-archives.sql` (the `blog_archive_counts()` sidebar aggregate). The
+service-role key **cannot run DDL** —
 apply schema by pasting SQL into the Supabase SQL editor. `supabase/reset-exams.sql`
 wipes exam/sales data (keeps users/blog/settings); `supabase/reset-sales.sql` is
 the narrow version — purchases + the `exam_access` they granted only, so exams and

@@ -43,8 +43,8 @@ export default function AboutPage() {
 
       <div className="text-foreground/90 mt-6 space-y-4 leading-relaxed">
         <p>
-          Bu platforma riyaziyyatı ciddi öyrənmək istəyənlər üçün nəzərdə
-          tutulub. İki hissədən ibarətdir: pulsuz{" "}
+          Bu platforma riyaziyyatı olimpiada səviyyəsində öyrənmək istəyənlər üçün nəzərdə
+          tutulub. İki hissədən ibarətdir: {" "}
           <Link href="/bloq" className="text-primary font-medium hover:underline">
             bloq
           </Link>{" "}
@@ -53,7 +53,7 @@ export default function AboutPage() {
             href="/imtahanlar"
             className="text-primary font-medium hover:underline"
           >
-            imtahanlar
+            sınaqlar
           </Link>
           , yəni özünü sınamaq və məsələ həlli bacarığını inkişaf etdirmək üçün
           diqqətlə hazırlanmış məsələ toplusu.
