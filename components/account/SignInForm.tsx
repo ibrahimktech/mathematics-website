@@ -5,11 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useSessionUser } from "@/lib/account/use-user";
 import { navigateAfterAuth } from "@/lib/account/navigate";
-import { beginSignIn, reportSignIn } from "@/lib/actions/account";
+import { signIn } from "@/lib/actions/account";
 import { safeRedirectPath } from "@/lib/security/redirect";
 import {
   TURNSTILE_INCOMPLETE_MESSAGE,
@@ -24,14 +23,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /**
- * Signs in with the BROWSER Supabase client so the navbar updates immediately
- * (onAuthStateChange) and the auth cookie is set for the server/middleware.
+ * Collects credentials and hands them to the `signIn` SERVER ACTION, which
+ * performs the authentication itself. This component learns only whether it
+ * worked; it is never asked to report the outcome back.
  *
- * Every attempt is bracketed by two server actions: `beginSignIn` applies the
- * rate limit / lockout before Supabase is contacted, and `reportSignIn` records
- * the outcome so repeated failures escalate into a temporary lockout. The UI
- * never distinguishes "no such account" from "wrong password" — both produce
- * the single generic message, so this form cannot be used to enumerate users.
+ * That asymmetry is the security property. The previous version signed in from
+ * the browser and then called `reportSignIn(email, success)` — a client-supplied
+ * boolean that cleared the failure counter, so a brute-forcer simply said
+ * "success" after every wrong guess and never got locked out. There is no
+ * client-side fix for that, so the reporting endpoint was removed rather than
+ * patched.
+ *
+ * The session cookies are written by the server during the action and arrive
+ * with its response, so the full-document `navigateAfterAuth()` below boots the
+ * browser client already signed in.
+ *
+ * The UI never distinguishes "no such account" from "wrong password" — both
+ * produce the single generic message, so this form cannot enumerate users.
  *
  * Turnstile guards this form too. That is not optional: Supabase's CAPTCHA
  * setting is project-wide, and once it is on the password grant on /auth/v1/token
@@ -80,39 +88,26 @@ export function SignInForm() {
       return;
     }
 
-    // Server-side throttle + lockout. Runs BEFORE Supabase is contacted, so a
-    // locked-out attempt costs the attacker a request and gains them nothing.
-    const gate = await beginSignIn(normalizedEmail, captchaToken);
-    if (!gate.ok) {
-      setLoading(false);
-      toast.error(gate.error);
-      return;
-    }
-
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    // One round trip. Validation, throttling, lockout, the Supabase call and
+    // the counter update all happen server-side, where they cannot be skipped.
+    const result = await signIn({
       email: normalizedEmail,
       password,
-      options: { captchaToken },
+      captchaToken,
     });
 
-    // Record the outcome so failures escalate and a success clears the counter.
-    // Bookkeeping must never strand a signed-in user on the login page, so a
-    // failure here is swallowed rather than allowed to skip the redirect below.
-    await reportSignIn(normalizedEmail, !error).catch(() => {});
-
-    if (error) {
+    if (!result.ok) {
       setLoading(false);
       // Supabase has consumed the token by now — re-arm before the next attempt.
       captcha.reset();
-      // Deliberately identical for "unknown account", "wrong password" and
-      // "unconfirmed email" — the real reason is only ever in the server log.
-      toast.error("E-poçt və ya şifrə yanlışdır.");
+      // Whatever the server chose to say: identical for "unknown account",
+      // "wrong password" and "unconfirmed email", specific only for throttling.
+      toast.error(result.error);
       return;
     }
 
-    // Signed in — hand off to the panel. `loading` deliberately stays true so
-    // the form cannot be resubmitted during the navigation.
+    // Signed in, cookies already set by the action. `loading` deliberately stays
+    // true so the form cannot be resubmitted during the navigation.
     navigateAfterAuth(redirect);
   }
 

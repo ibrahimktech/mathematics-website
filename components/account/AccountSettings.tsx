@@ -5,11 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import {
-  beginPasswordChange,
-  reportPasswordChange,
-  validateNewPassword,
-} from "@/lib/actions/account";
+import { changePassword } from "@/lib/actions/account";
 import { MIN_PASSWORD_LENGTH, cleanName, validateName } from "@/lib/security/password";
 import {
   TURNSTILE_INCOMPLETE_MESSAGE,
@@ -95,23 +91,6 @@ export function AccountSettings({
 
     setSavingPw(true);
 
-    // Strength rules enforced on the server so the client bundle isn't the gate.
-    const strength = await validateNewPassword(password);
-    if (!strength.ok) {
-      setSavingPw(false);
-      toast.error(strength.error);
-      return;
-    }
-
-    // Throttle: stops the current-password field being used as an offline-style
-    // guessing oracle by someone sitting at an unlocked, already-signed-in browser.
-    const gate = await beginPasswordChange();
-    if (!gate.ok) {
-      setSavingPw(false);
-      toast.error(gate.error);
-      return;
-    }
-
     const captchaToken = (await captcha.waitForToken()) || undefined;
     if (captcha.enabled && !captchaToken) {
       setSavingPw(false);
@@ -123,39 +102,23 @@ export function AccountSettings({
       return;
     }
 
-    const supabase = createClient();
-
-    // RE-AUTHENTICATE: prove the person at the keyboard knows the current
-    // password, not merely that a valid session cookie is present.
-    const { error: reauthError } = await supabase.auth.signInWithPassword({
-      email,
-      password: currentPassword,
-      options: { captchaToken },
+    // One round trip. Strength rules, throttling, the re-authentication and the
+    // failure counter all live server-side — this component is told the result
+    // and never asked to report one.
+    const result = await changePassword({
+      currentPassword,
+      newPassword: password,
+      captchaToken,
     });
-    // Spent either way, and this form stays mounted for a second attempt —
-    // re-arm now rather than on each failure branch below.
+    // Spent either way, and this form stays mounted for a second attempt.
     captcha.reset();
-    if (reauthError) {
-      await reportPasswordChange(false);
-      setSavingPw(false);
-      toast.error("Cari şifrə yanlışdır.");
-      return;
-    }
-
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) {
-      await reportPasswordChange(false);
-      setSavingPw(false);
-      toast.error("Şifrə yenilənmədi.");
-      return;
-    }
-
-    // Revoke every OTHER session: if the old password had leaked, the sessions
-    // it created must not survive the change. This session stays signed in.
-    await supabase.auth.signOut({ scope: "others" });
-    await reportPasswordChange(true);
 
     setSavingPw(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
     setCurrentPassword("");
     setPassword("");
     toast.success("Şifrə yeniləndi. Digər cihazlardakı sessiyalar bağlandı.");

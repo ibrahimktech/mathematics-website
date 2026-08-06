@@ -1,10 +1,23 @@
 "use server";
 
 import { headers } from "next/headers";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  SUPABASE_ANON_KEY,
+  SUPABASE_URL,
+  isSupabaseConfigured,
+} from "@/lib/supabase/config";
 import { getClientIp } from "@/lib/security/request";
-import { authKeys, consume, penalize, reset, RATE_RULES } from "@/lib/security/rate-limit";
+import {
+  acquire,
+  authKeys,
+  consume,
+  penalize,
+  release,
+  reset,
+  RATE_RULES,
+} from "@/lib/security/rate-limit";
 import { logSecurityEvent } from "@/lib/security/log";
 import {
   cleanName,
@@ -21,22 +34,42 @@ import {
 } from "@/lib/security/turnstile";
 
 /**
- * Server-side gate for the authentication forms.
+ * Server-side authentication.
  *
- * The sign-in / sign-up calls themselves stay in the browser (that is what lets
- * the navbar react instantly via `onAuthStateChange`, and it is the supported
- * `@supabase/ssr` flow). These actions wrap that call with the controls the
- * browser cannot be trusted to apply to itself:
+ * THE RULE THIS FILE EXISTS TO ENFORCE: the browser never tells the server
+ * whether a credential check passed. The server performs the check itself and
+ * observes the result first-hand.
  *
- *   • server-side re-validation of every field (client checks are UX only);
- *   • IP-keyed rate limiting, progressive delays and temporary lockouts;
- *   • security-event logging (never passwords or tokens).
+ * This used to work the other way. `signInWithPassword` ran in the browser and
+ * called `reportSignIn(email, success)` afterwards to say how it went — and
+ * `success: true` cleared the failure counter and any lockout. The boolean came
+ * from the client, so a brute-forcer just sent `true` after every wrong guess
+ * and the progressive lockout never engaged. No amount of validation fixes
+ * that: the party observing the result was not the party enforcing the
+ * consequences, and any report channel from browser to server is forgeable by
+ * definition. `reportSignIn` and `reportPasswordChange` are therefore GONE, not
+ * hardened — an endpoint that exists only to be told something by an untrusted
+ * caller cannot be made safe.
  *
- * IMPORTANT — the honest limit of this design: an attacker who skips our UI and
- * posts straight to the Supabase Auth API is not seen by these actions. Supabase's
- * own Auth rate limits (and CAPTCHA, if enabled) are the control on that path;
- * see README → "Brute-force protection". These actions harden the application
- * path and give us the log trail, they are not the only line of defence.
+ * What every credential action here now does, in order:
+ *
+ *   1. re-validate the input server-side (client checks are UX only);
+ *   2. require a Turnstile token before any counter moves;
+ *   3. take an in-flight lock so concurrent attempts cannot outrun the counter;
+ *   4. consume a rate-limit slot, honouring any active lockout;
+ *   5. CALL SUPABASE ITSELF and branch on the real answer;
+ *   6. penalize or reset from that answer, never from an argument.
+ *
+ * Auth cookies are written by the cookie-backed server client in step 5 and
+ * ride back on the Server Action response, so the browser is signed in when the
+ * action returns. Server Actions are same-origin enforced by Next.js, which is
+ * what stops a cross-site page from driving them.
+ *
+ * IMPORTANT — the honest limit: an attacker who skips this app and posts
+ * straight to the Supabase Auth API is not seen by these actions at all. That
+ * path is covered by Turnstile (enforced inside Supabase Auth) plus Supabase's
+ * own rate limits — see README §8.2. This file hardens the application path and
+ * produces the log trail; it is not the only line of defence.
  */
 
 export type GateResult =
@@ -77,7 +110,7 @@ function throttleMessage(seconds: number): string {
  * not lose one of their few sign-up / reset attempts over it.
  */
 function captchaGate(
-  scope: "signin" | "signup" | "reset",
+  scope: "signin" | "signup" | "reset" | "pwchange",
   token: unknown,
   email: string,
   ip: string,
@@ -88,71 +121,148 @@ function captchaGate(
   return { ok: false, error: TURNSTILE_INCOMPLETE_MESSAGE };
 }
 
+/**
+ * Did Supabase refuse for a reason that is NOT "these credentials are wrong"?
+ * Returns the message to show, or null when it really was a credential failure.
+ *
+ * Only a genuine credential rejection may move the failure counter. A Turnstile
+ * token expires after five minutes, and Supabase rejects at the captcha
+ * middleware BEFORE any password is checked — so counting that as a failed
+ * login would let someone who simply left the form open lock themselves out,
+ * while being told their password was wrong when nothing was wrong with it.
+ *
+ * This is not a hole an attacker can use: a request rejected for a bad captcha
+ * never tests a password, so skipping the penalty gives them nothing to learn.
+ * They have still spent a rate-limit slot, because `consume()` ran first.
+ */
+function nonCredentialFailure(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+  const { code, status, message } = error as {
+    code?: unknown;
+    status?: unknown;
+    message?: unknown;
+  };
+  const codeText = String(code ?? "").toLowerCase();
+  const messageText = String(message ?? "").toLowerCase();
+
+  if (codeText.includes("captcha") || messageText.includes("captcha")) {
+    return TURNSTILE_INCOMPLETE_MESSAGE;
+  }
+  // Supabase's own limiter kicked in. Slowing them further on our side as well
+  // would punish the user twice for one condition.
+  if (status === 429 || codeText.includes("rate_limit")) {
+    return throttleMessage(60);
+  }
+  return null;
+}
+
 /* ============================================================== sign-in ==== */
 
+export type SignInFields = {
+  email: string;
+  password: string;
+  /** Turnstile token. Presence checked here; VERIFIED by Supabase Auth. */
+  captchaToken?: string;
+};
+
 /**
- * Call BEFORE `supabase.auth.signInWithPassword`. Consumes a rate-limit slot
- * for this (IP, account) pair and for the IP as a whole, and refuses while a
- * lockout is in force.
+ * Sign in. The whole operation, server-side.
+ *
+ * The password reaches Supabase from here rather than from the browser, which
+ * is the entire point: the failure counter is driven by the answer Supabase
+ * gave THIS code, so there is nothing for a modified client to lie about. The
+ * old three-call dance (`beginSignIn` → browser auth → `reportSignIn`) is gone.
+ *
+ * On success the cookie-backed client writes the session cookies, and Next.js
+ * returns them with this action's response — so the caller is signed in by the
+ * time this resolves and only has to navigate.
+ *
+ * Every failure — bad address, unknown account, wrong password, unconfirmed
+ * email — returns one identical message. The distinctions exist only in the
+ * server log, so this cannot be used to work out which addresses have accounts.
  */
-export async function beginSignIn(
-  rawEmail: string,
-  captchaToken?: string,
-): Promise<GateResult> {
-  const email = normalizeEmail(String(rawEmail ?? ""));
+export async function signIn(fields: SignInFields): Promise<GateResult> {
+  const email = normalizeEmail(String(fields?.email ?? ""));
+  const password = String(fields?.password ?? "");
   const ip = await callerIp();
+
+  if (!isSupabaseConfigured) return { ok: false, error: GENERIC_CREDENTIALS };
 
   // Malformed input never reaches Supabase — and returns the SAME generic
   // message as a wrong password, so this can't be used to probe addresses.
   if (validateEmail(email)) return { ok: false, error: GENERIC_CREDENTIALS };
 
-  const captcha = captchaGate("signin", captchaToken, email, ip);
+  const captcha = captchaGate("signin", fields?.captchaToken, email, ip);
   if (!captcha.ok) return captcha;
 
   const keys = authKeys("signin", ip, email);
-  for (const key of [keys.ipAccount, keys.ip]) {
-    const verdict = consume(key, RATE_RULES.signIn);
-    if (!verdict.allowed) {
-      logSecurityEvent("auth.sign_in_throttled", {
-        email,
-        ip,
-        reason: verdict.reason,
-        retryAfterSeconds: verdict.retryAfterSeconds,
-      });
-      return {
-        ok: false,
-        error: throttleMessage(verdict.retryAfterSeconds),
-        retryAfterSeconds: verdict.retryAfterSeconds,
-      };
-    }
+
+  // Serialise before counting. Without this, a burst of parallel requests all
+  // clear `consume()` before the first failure is recorded and the lockout
+  // never engages. Refused attempts deliberately do NOT consume a slot — a
+  // double-clicking real user must not spend their own budget on it.
+  if (!acquire(keys.ipAccount)) {
+    logSecurityEvent("auth.sign_in_throttled", { email, ip, reason: "concurrent" });
+    return { ok: false, error: throttleMessage(5), retryAfterSeconds: 5 };
   }
-  return { ok: true };
-}
 
-/**
- * Call AFTER the sign-in attempt resolves. A failure escalates the lockout for
- * this (IP, account) pair; a success clears it. Only the precise pair is locked,
- * so nobody can lock a victim out of their own account from another address.
- */
-export async function reportSignIn(
-  rawEmail: string,
-  success: boolean,
-): Promise<void> {
-  const email = normalizeEmail(String(rawEmail ?? ""));
-  const ip = await callerIp();
-  const keys = authKeys("signin", ip, email);
+  try {
+    for (const key of [keys.ipAccount, keys.ip]) {
+      const verdict = consume(key, RATE_RULES.signIn);
+      if (!verdict.allowed) {
+        logSecurityEvent("auth.sign_in_throttled", {
+          email,
+          ip,
+          reason: verdict.reason,
+          retryAfterSeconds: verdict.retryAfterSeconds,
+        });
+        return {
+          ok: false,
+          error: throttleMessage(verdict.retryAfterSeconds),
+          retryAfterSeconds: verdict.retryAfterSeconds,
+        };
+      }
+    }
 
-  if (success) {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: { captchaToken: fields?.captchaToken },
+    });
+
+    // Treat "no error but no session" as a failure too. Trusting the absence of
+    // an error alone would make any future Supabase response shape that omits a
+    // session look like a successful login.
+    if (error || !data?.session) {
+      // An expired captcha or an upstream throttle is not a wrong password, and
+      // must not push a real user towards a lockout they did not earn.
+      const upstream = nonCredentialFailure(error);
+      if (upstream) {
+        logSecurityEvent("auth.sign_in_throttled", {
+          email,
+          ip,
+          reason: "upstream_rejected",
+        });
+        return { ok: false, error: upstream };
+      }
+
+      const lockoutSeconds = penalize(keys.ipAccount, RATE_RULES.signIn);
+      logSecurityEvent("auth.sign_in_failed", { email, ip, lockoutSeconds });
+      if (lockoutSeconds > 0) {
+        logSecurityEvent("auth.sign_in_locked", { email, ip, lockoutSeconds });
+      }
+      return { ok: false, error: GENERIC_CREDENTIALS };
+    }
+
+    // Verified success — the only path that may clear the counters.
     reset(keys.ipAccount);
     reset(keys.ip);
     logSecurityEvent("auth.sign_in_succeeded", { email, ip });
-    return;
-  }
-
-  const lockoutSeconds = penalize(keys.ipAccount, RATE_RULES.signIn);
-  logSecurityEvent("auth.sign_in_failed", { email, ip, lockoutSeconds });
-  if (lockoutSeconds > 0) {
-    logSecurityEvent("auth.sign_in_locked", { email, ip, lockoutSeconds });
+    return { ok: true };
+  } finally {
+    // `finally`, so a thrown request can never leave the account pinned shut.
+    release(keys.ipAccount);
   }
 }
 
@@ -304,60 +414,138 @@ export async function requestPasswordReset(
 
 /* ====================================================== password change ==== */
 
+export type PasswordChangeFields = {
+  currentPassword: string;
+  newPassword: string;
+  /** Turnstile token — the re-authentication below is a password grant. */
+  captchaToken?: string;
+};
+
 /**
- * Rate-limit gate for changing the password of the CURRENTLY signed-in user.
- * The account is identified from the verified session, never from an argument.
+ * Change the signed-in user's password. The whole operation, server-side.
+ *
+ * Same disease as sign-in, same cure: this used to be `beginPasswordChange()`
+ * → browser re-auth → `reportPasswordChange(success)`, and that last boolean
+ * came from the client. Anyone sitting at an unlocked signed-in browser could
+ * guess the current password indefinitely, clearing the counter after each miss
+ * — which defeated the one control protecting that field. Now the server does
+ * the verification and moves the counter from what it saw.
+ *
+ * The account is taken from the verified session, never from an argument, so a
+ * caller cannot aim this at somebody else.
+ *
+ * WHY RE-AUTHENTICATE AT ALL: without it, a valid session cookie alone is
+ * enough to take an account over permanently — a shared computer, a borrowed
+ * phone, or an XSS payload becomes a password reset. Requiring the current
+ * password means momentary access is no longer sufficient.
+ *
+ * The check runs on a THROWAWAY client, not the request's cookie client: a
+ * password grant issues a new session, and doing that on the cookie client
+ * would overwrite the caller's own session cookies mid-request. The throwaway
+ * session is signed out immediately so it cannot linger as a usable refresh
+ * token.
  */
-export async function beginPasswordChange(): Promise<GateResult> {
-  if (!isSupabaseConfigured) return { ok: false, error: "Sistem konfiqurasiya edilməyib." };
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Əvvəlcə daxil olun." };
-
-  const ip = await callerIp();
-  const key = `pwchange:${user.id}`;
-  const verdict = consume(key, RATE_RULES.passwordChange);
-  if (!verdict.allowed) {
-    logSecurityEvent("auth.password_change_rejected", {
-      email: user.email,
-      ip,
-      reason: verdict.reason,
-    });
-    return {
-      ok: false,
-      error: throttleMessage(verdict.retryAfterSeconds),
-      retryAfterSeconds: verdict.retryAfterSeconds,
-    };
+export async function changePassword(
+  fields: PasswordChangeFields,
+): Promise<GateResult> {
+  if (!isSupabaseConfigured) {
+    return { ok: false, error: "Sistem konfiqurasiya edilməyib." };
   }
-  return { ok: true };
-}
 
-/** Record the outcome of a password change (wrong current password → penalty). */
-export async function reportPasswordChange(success: boolean): Promise<void> {
-  if (!isSupabaseConfigured) return;
+  const currentPassword = String(fields?.currentPassword ?? "");
+  const newPassword = String(fields?.newPassword ?? "");
+  const ip = await callerIp();
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user?.email) return { ok: false, error: "Əvvəlcə daxil olun." };
 
-  const ip = await callerIp();
+  if (!currentPassword) return { ok: false, error: "Cari şifrəni daxil edin." };
+  if (currentPassword === newPassword) {
+    return { ok: false, error: "Yeni şifrə cari şifrədən fərqli olmalıdır." };
+  }
+
+  // Strength rules enforced here, so editing the client bundle cannot skip them.
+  const strengthError = validatePassword(newPassword, { email: user.email });
+  if (strengthError) return { ok: false, error: strengthError };
+
+  const captcha = captchaGate("pwchange", fields?.captchaToken, user.email, ip);
+  if (!captcha.ok) return captcha;
+
   const key = `pwchange:${user.id}`;
-  if (success) {
+  if (!acquire(key)) {
+    return { ok: false, error: throttleMessage(5), retryAfterSeconds: 5 };
+  }
+
+  try {
+    const verdict = consume(key, RATE_RULES.passwordChange);
+    if (!verdict.allowed) {
+      logSecurityEvent("auth.password_change_rejected", {
+        email: user.email,
+        ip,
+        reason: verdict.reason,
+      });
+      return {
+        ok: false,
+        error: throttleMessage(verdict.retryAfterSeconds),
+        retryAfterSeconds: verdict.retryAfterSeconds,
+      };
+    }
+
+    // Prove the person at the keyboard knows the current password.
+    const verifier = createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: reauth, error: reauthError } =
+      await verifier.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+        options: { captchaToken: fields?.captchaToken },
+      });
+
+    if (reauthError || !reauth?.session) {
+      // Same rule as sign-in: an expired captcha never tested the password, so
+      // it must not count as a wrong-current-password attempt.
+      const upstream = nonCredentialFailure(reauthError);
+      if (upstream) return { ok: false, error: upstream };
+
+      const lockoutSeconds = penalize(key, RATE_RULES.passwordChange);
+      logSecurityEvent("auth.password_change_rejected", {
+        email: user.email,
+        ip,
+        reason: "bad_current_password",
+        lockoutSeconds,
+      });
+      return { ok: false, error: "Cari şifrə yanlışdır." };
+    }
+
+    // Don't leave the verification session usable.
+    await verifier.auth.signOut().catch(() => {});
+
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (updateError) {
+      logSecurityEvent("auth.password_change_rejected", {
+        email: user.email,
+        ip,
+        reason: "update_failed",
+      });
+      return { ok: false, error: "Şifrə yenilənmədi." };
+    }
+
+    // If the old password had leaked, the sessions it created must not survive
+    // the change. This session stays signed in; every other device is cut off.
+    await supabase.auth.signOut({ scope: "others" }).catch(() => {});
+
     reset(key);
     logSecurityEvent("auth.password_changed", { email: user.email, ip });
-    return;
+    return { ok: true };
+  } finally {
+    release(key);
   }
-  const lockoutSeconds = penalize(key, RATE_RULES.passwordChange);
-  logSecurityEvent("auth.password_change_rejected", {
-    email: user.email,
-    ip,
-    reason: "bad_current_password",
-    lockoutSeconds,
-  });
 }
 
 /**

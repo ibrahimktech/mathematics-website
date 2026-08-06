@@ -236,17 +236,32 @@ Shared primitives, imported by BOTH the client forms and the server actions so
 the two rule sets can never drift. `password.ts` / `redirect.ts` are pure (safe
 in client components); `rate-limit.ts` / `log.ts` / `request.ts` are `server-only`.
 
-- **Auth flow is unchanged** (browser `signInWithPassword`, so the navbar still
-  reacts via `onAuthStateChange`) but every attempt is bracketed by server
-  actions in `lib/actions/account.ts`: `beginSignIn` → rate limit/lockout →
-  Supabase → `reportSignIn` records the outcome. `beginSignUp` re-validates
-  server-side and returns the CLEANED values the client then submits.
-  **Password reset runs entirely server-side** (`requestPasswordReset`), so its
-  rate limit can't be skipped; pages are `/sifre-sifirlama` + `/sifre-yenile`.
+- **THE BROWSER NEVER REPORTS A CREDENTIAL RESULT.** Every password check runs
+  inside a server action in `lib/actions/account.ts`, which calls Supabase
+  itself and moves the failure counter from the answer it got. `signIn()` and
+  `changePassword()` are each ONE call doing validate → captcha → in-flight lock
+  → rate limit → Supabase → penalize/reset. There is deliberately no endpoint
+  that accepts "the login succeeded" as an argument: the old
+  `beginSignIn`/`reportSignIn`/`beginPasswordChange`/`reportPasswordChange` pair
+  took a client-supplied `success` boolean, so a brute-forcer sent `true` after
+  every wrong guess and the progressive lockout never engaged. They were
+  **deleted, not hardened** — an endpoint that exists to be told something by an
+  untrusted caller cannot be made safe. **Never reintroduce one.**
+  Auth cookies are written by the cookie server client during the action and
+  ride back on its response, so the browser is signed in when it resolves and
+  only has to `navigateAfterAuth()`. `beginSignUp` still only re-validates and
+  returns CLEANED values (account creation has no failure counter to protect).
+  **Password reset also runs entirely server-side** (`requestPasswordReset`);
+  pages are `/sifre-sifirlama` + `/sifre-yenile`.
 - **Rate limiting is in-process** (`rate-limit.ts`): per server instance, lost on
   cold start, and blind to requests that hit Supabase Auth directly. Supabase's
   own Auth limits + CAPTCHA are the real ceiling — see README §8.2. Lockouts are
   keyed per **(IP + account)** via `authKeys()` so nobody can lock a victim out.
+  `acquire()`/`release()` hold a per-key in-flight lock ACROSS the Supabase
+  await: without it a burst of parallel logins all clear `consume()` before the
+  first failure is recorded, spending the whole window's guesses before the
+  lockout can engage. Always release in a `finally` — the 30s TTL is a
+  dead-man's switch, not the normal path.
 - **Sign-in and password reset never reveal whether an account exists.** Both
   return one generic message. Don't "improve" the UX by branching on
   `error.message.includes("already")` — that would be an enumeration oracle.

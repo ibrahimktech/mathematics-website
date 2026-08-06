@@ -168,6 +168,47 @@ export function reset(key: string): void {
   entry.lockedUntil = 0;
 }
 
+/* ------------------------------------------------- one attempt at a time -- */
+
+/**
+ * Serialises credential checks for a single key.
+ *
+ * WHY THIS EXISTS: `consume()` and `penalize()` are individually atomic (Node
+ * runs one tick at a time), but a login spans an `await` between them —
+ * consume → ask Supabase → penalize. Fire N requests together and all N clear
+ * `consume()` before the first failure is ever recorded, so a burst gets the
+ * whole remaining window's worth of guesses at once and the progressive lockout
+ * never has a chance to engage. That is a real bypass, not a theoretical one.
+ *
+ * Holding a lock across the await collapses the gap: the second concurrent
+ * attempt for the same (IP, account) is refused outright, so failures are
+ * always counted before the next guess is allowed to start.
+ *
+ * The timestamp is a dead-man's switch. If a request throws between acquire and
+ * release — or the process is killed mid-flight — the entry would otherwise pin
+ * that account shut forever, turning a safety feature into a self-inflicted
+ * denial of service. After `IN_FLIGHT_TTL_MS` a stale holder is ignored.
+ *
+ * Same honest scope as everything else here: per process, so it serialises the
+ * instance rather than the cluster. It raises the cost of a burst; it is not a
+ * distributed mutex.
+ */
+const inFlight = new Map<string, number>();
+const IN_FLIGHT_TTL_MS = 30_000;
+
+/** True if the caller now holds the lock. False means one is already running. */
+export function acquire(key: string, now = Date.now()): boolean {
+  const startedAt = inFlight.get(key);
+  if (startedAt !== undefined && now - startedAt < IN_FLIGHT_TTL_MS) return false;
+  inFlight.set(key, now);
+  return true;
+}
+
+/** Always call from a `finally`, never a success branch. */
+export function release(key: string): void {
+  inFlight.delete(key);
+}
+
 /**
  * Keys for an authentication attempt.
  *
