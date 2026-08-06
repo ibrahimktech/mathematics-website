@@ -3,7 +3,7 @@
  * data access and no `server-only`, so client components can import these
  * directly. Kept separate from `lib/exams.ts` (server-only DB access).
  */
-import type { ExamDifficulty } from "./types";
+import type { ExamDifficulty, ExamStatus } from "./types";
 
 const DIFFICULTY_LABELS: Record<ExamDifficulty, string> = {
   beginner: "Başlanğıc",
@@ -35,6 +35,25 @@ export function difficultyChipClass(d: ExamDifficulty): string {
     default:
       return "bg-secondary text-muted-foreground";
   }
+}
+
+/**
+ * PUBLICATION status of an exam (draft / published / archived), as shown in the
+ * admin table and the reorder page. Distinct from the STUDENT's per-exam state
+ * (locked / owned / in progress …), which lives in `lib/student/status.ts`.
+ */
+const PUBLISH_STATUS: Record<ExamStatus, { label: string; chipClass: string }> = {
+  published: { label: "Dərc edilib", chipClass: "bg-primary/10 text-primary" },
+  draft: { label: "Qaralama", chipClass: "bg-secondary text-muted-foreground" },
+  archived: { label: "Arxiv", chipClass: "bg-destructive/10 text-destructive" },
+};
+
+export function examPublishLabel(status: ExamStatus): string {
+  return (PUBLISH_STATUS[status] ?? PUBLISH_STATUS.draft).label;
+}
+
+export function examPublishChipClass(status: ExamStatus): string {
+  return (PUBLISH_STATUS[status] ?? PUBLISH_STATUS.draft).chipClass;
 }
 
 /** Localized price label. 0 → "Pulsuz". Currency comes from the DB. */

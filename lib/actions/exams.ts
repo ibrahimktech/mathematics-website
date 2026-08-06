@@ -57,6 +57,15 @@ const QuestionInput = z
   });
 export type QuestionInputData = z.input<typeof QuestionInput>;
 
+/** A complete catalogue order: every exam id exactly once, first to last. */
+const ReorderInput = z
+  .array(z.string().uuid())
+  .min(1, "Sıralanacaq imtahan yoxdur.")
+  .max(1000)
+  .refine((ids) => new Set(ids).size === ids.length, {
+    message: "Siyahıda təkrarlanan imtahan var.",
+  });
+
 async function requireAdmin(
   supabase: SupabaseClient,
 ): Promise<ActionResult | null> {
@@ -91,6 +100,55 @@ function revalidateExamPublic() {
   revalidatePath("/imtahanlar/[slug]", "page");
   revalidatePath("/sitemap.xml");
   revalidatePath("/admin/exams");
+}
+
+/**
+ * Persist a new CATALOGUE order (exam ids, first to last).
+ *
+ * `saveExam` never writes `display_order` and this never writes anything else,
+ * so editing an exam can't move it and reordering can't edit it. A new exam gets
+ * `max + 1` from a DB trigger and lands at the bottom until dragged.
+ *
+ * The whole order goes over as ONE rpc call, which runs ONE
+ * `update … from unnest(…) with ordinality` — atomic, so a failure leaves the
+ * previous order completely intact rather than half-renumbered. The RPC
+ * re-checks `is_admin()` itself and rejects any list that isn't a permutation of
+ * every exam. See `supabase/exam-display-order.sql`.
+ */
+export async function reorderExams(
+  orderedIds: string[],
+): Promise<ActionResult> {
+  if (!isSupabaseConfigured)
+    return { ok: false, error: "Supabase konfiqurasiya edilməyib." };
+
+  const parsed = ReorderInput.safeParse(orderedIds);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Yanlış məlumat." };
+  }
+
+  const supabase = await createClient();
+  const denied = await requireAdmin(supabase);
+  if (denied) return denied;
+
+  try {
+    const { error } = await supabase.rpc("reorder_exams", { p_ids: parsed.data });
+    if (error) throw error;
+    revalidateExamPublic();
+    revalidatePath("/admin/exams/siralama");
+    return { ok: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "";
+    // Raised by the RPC when the submitted list no longer covers every exam —
+    // i.e. one was created or deleted while the reorder page was open.
+    if (message.includes("stale exam order")) {
+      return {
+        ok: false,
+        error:
+          "Siyahı köhnəlib — imtahan əlavə olunub və ya silinib. Səhifəni yeniləyib yenidən cəhd edin.",
+      };
+    }
+    return { ok: false, error: message || "Sıralama yadda saxlanmadı." };
+  }
 }
 
 export async function saveExam(input: ExamInputData): Promise<ActionResult> {

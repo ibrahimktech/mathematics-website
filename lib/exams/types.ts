@@ -40,6 +40,13 @@ export interface Exam {
   covers: string[];
   featured: boolean;
   status: ExamStatus;
+  /**
+   * 1-based position in the catalogue, set by hand by the teacher at
+   * /admin/exams/siralama. Every student-facing list sorts by this ASC, so the
+   * catalogue reflects the teacher's choice rather than upload order. Gaps are
+   * legal (deleting an exam leaves one) — only the relative order matters.
+   */
+  displayOrder: number;
   updatedAt: string;
   createdAt: string;
 }
@@ -60,6 +67,7 @@ export interface ExamRow {
   featured: boolean;
   status: ExamStatus;
   question_count: number;
+  display_order: number;
   created_at: string;
   updated_at: string;
 }

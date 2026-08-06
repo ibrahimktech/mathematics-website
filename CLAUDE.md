@@ -96,7 +96,8 @@ is hardcoded. Routing (all Azerbaijani):
 - `/imtahanlar` + `/imtahanlar/[slug]` — exam catalogue (published only, slug URLs).
 - `/qeydiyyat`,`/daxil-ol` (auth), `/panel` (dashboard).
 - `/panel/odenis/[id]` — manual bank-transfer payment page (focused).
-- Admin: `/admin/exams`, `/admin/purchases`, `/admin/settings` (+ blog admin).
+- Admin: `/admin/exams`, `/admin/exams/siralama` (manual catalogue order),
+  `/admin/purchases`, `/admin/settings` (+ blog admin).
 
 - **Exams live in the DB, not code.** `lib/exams.ts` (server-only) reads the
   `exams` table via the cookie-less public client → RLS returns only **published**
@@ -104,6 +105,25 @@ is hardcoded. Routing (all Azerbaijani):
   (`lib/exams/types.ts`, `lib/exams/display.ts`) so client components don't pull
   `server-only`. The old `lib/exams/data.ts`/`questions.ts`/`answer-key.ts` are
   **gone**. `exams.category_slug` matches a blog category slug → exam↔blog links.
+- **⚠️ REQUIRED: apply `supabase/exam-display-order.sql`** (additive; drops
+  nothing). **The catalogue order is MANUAL, not derived.** Students see exams
+  by `display_order asc` (`created_at desc` only breaks ties) — never by upload
+  date, and `featured` no longer jumps an exam to the top of `/imtahanlar` (it
+  still selects what the homepage highlights). The teacher drags the order at
+  `/admin/exams/siralama` (`ExamReorderList`, dnd-kit); Save sends the whole
+  order to `reorderExams()` → the `reorder_exams(uuid[])` RPC, which re-checks
+  `is_admin()`, refuses any list that isn't a permutation of every exam, and
+  writes it in ONE `update … from unnest(…) with ordinality` so it can never
+  half-apply. `getExams()` is the single place the order is decided; every other
+  student-facing list derives from it. A DB trigger gives a new exam
+  `max + 1` (so it lands last) and `saveExam` never writes the column, so
+  **editing an exam cannot move it**. **Deleting leaves a gap on purpose** —
+  order is relative, and the next save renumbers 1..N. A second trigger keeps
+  `updated_at` unchanged for reorder-only writes so dragging doesn't mark every
+  exam as edited. `runExamQuery()` in `lib/exams.ts` retries without the column
+  if the migration hasn't run yet — that fallback is the ONLY reason the
+  catalogue isn't empty pre-migration; delete it once the SQL is applied
+  everywhere.
 - **Questions + answers never leak.** `exam_questions` is **admin-only** at the
   table level (RLS). Students receive answer-free questions ONLY through the
   SECURITY DEFINER RPC `get_exam_questions(uuid)` (`lib/exams/questions.ts`),
@@ -219,9 +239,10 @@ is hardcoded. Routing (all Azerbaijani):
 `supabase/analytics-schema.sql` (blog_views + admin aggregate RPCs) are the
 sources of truth (tables, RLS, storage buckets `article-images` public +
 `receipts` private, SECURITY DEFINER `is_admin`/`has_exam_access`/
-`get_exam_questions`/`blog_view_*`), plus three additive patches applied on top:
-`supabase/security-hardening.sql`, `supabase/exam-attempt-limit.sql` and
-`supabase/blog-archives.sql` (the `blog_archive_counts()` sidebar aggregate). The
+`get_exam_questions`/`blog_view_*`), plus four additive patches applied on top:
+`supabase/security-hardening.sql`, `supabase/exam-attempt-limit.sql`,
+`supabase/blog-archives.sql` (the `blog_archive_counts()` sidebar aggregate) and
+`supabase/exam-display-order.sql` (`exams.display_order` + `reorder_exams()`). The
 service-role key **cannot run DDL** —
 apply schema by pasting SQL into the Supabase SQL editor. `supabase/reset-exams.sql`
 wipes exam/sales data (keeps users/blog/settings); `supabase/reset-sales.sql` is

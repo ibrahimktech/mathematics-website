@@ -1,6 +1,7 @@
 import "server-only";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
+import { runExamQuery } from "@/lib/exams";
 import type { AdminExamQuestion, ExamRow } from "@/lib/exams/types";
 
 /**
@@ -9,20 +10,27 @@ import type { AdminExamQuestion, ExamRow } from "@/lib/exams/types";
  * read ALL exams (drafts included) and the full question rows (with answers).
  */
 
-const EXAM_SELECT =
-  "id,title,slug,summary,description,category_slug,difficulty,price,currency,duration_minutes,covers,featured,status,question_count,created_at,updated_at";
-
-/** All exams (any status), newest updated first. */
+/**
+ * All exams (any status), in the SAME order students see them (`display_order`,
+ * set at /admin/exams/siralama). Drafts and archived exams hold positions too,
+ * so publishing a draft leaves it exactly where the teacher put it. Matching the
+ * public order here is what makes the reorder page's effect visible and lets the
+ * admin table double as a preview of the catalogue.
+ */
 export async function getAllExamsAdmin(): Promise<ExamRow[]> {
   if (!isSupabaseConfigured) return [];
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("exams")
-      .select(EXAM_SELECT)
-      .order("updated_at", { ascending: false });
-    if (error) throw error;
-    return (data ?? []) as ExamRow[];
+    const rows = await runExamQuery((columns, hasDisplayOrder) => {
+      const q = supabase.from("exams").select(columns);
+      return hasDisplayOrder
+        ? q
+            .order("display_order", { ascending: true })
+            .order("created_at", { ascending: false })
+        : // Pre-migration (see runExamQuery): the previous admin ordering.
+          q.order("updated_at", { ascending: false });
+    });
+    return (rows ?? []) as ExamRow[];
   } catch {
     return [];
   }
@@ -32,12 +40,9 @@ export async function getExamByIdAdmin(id: string): Promise<ExamRow | null> {
   if (!isSupabaseConfigured) return null;
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("exams")
-      .select(EXAM_SELECT)
-      .eq("id", id)
-      .maybeSingle();
-    if (error) throw error;
+    const data = await runExamQuery((columns) =>
+      supabase.from("exams").select(columns).eq("id", id).maybeSingle(),
+    );
     return (data as ExamRow) ?? null;
   } catch {
     return null;
