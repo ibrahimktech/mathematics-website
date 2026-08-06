@@ -36,8 +36,13 @@ import { Label } from "@/components/ui/label";
  * The checks below run twice: here for instant feedback, and again inside
  * `beginSignUp` on the server — which also rate-limits sign-ups and returns the
  * normalised values actually submitted, so editing the client bundle buys
- * nothing. The success message is identical for a new and an existing address
- * so the form cannot be used to test which e-mails have accounts.
+ * nothing.
+ *
+ * ACCOUNT EXISTENCE IS DISCLOSED HERE, DELIBERATELY — see the `identities`
+ * branch below. This is a product decision, taken knowingly: the alternative
+ * (one identical message either way) left people who had simply forgotten they
+ * had an account staring at an inbox that would never receive anything. Sign-in
+ * and password reset are NOT changed and still reveal nothing.
  *
  * BOT PROTECTION: a Cloudflare Turnstile token rides along as
  * `options.captchaToken`. Supabase Auth verifies it against Cloudflare before it
@@ -136,19 +141,40 @@ export function SignUpForm() {
       setLoading(false);
       // The token is spent either way, so re-arm the widget before the retry.
       captcha.reset();
-      // No branch on "already registered": telling the visitor that an address
-      // is taken is an account-enumeration oracle. One message for every failure.
       toast.error("Qeydiyyat alınmadı. Yenidən cəhd edin.");
       return;
     }
+
+    /**
+     * Supabase does not error when the address already has a CONFIRMED account —
+     * it returns an obfuscated user and sends no mail. The marker is an empty
+     * `identities` array, and it is precise: a brand-new address and an existing
+     * UNCONFIRMED one both come back with one identity, and both genuinely do
+     * receive a link. So this branch fires only when nothing was sent, which is
+     * exactly the case where "check your inbox" would be a lie.
+     *
+     * Yes, this confirms to a caller that an address is registered. That is the
+     * accepted trade (see the note above the component). What makes it tolerable
+     * rather than a free enumeration API: reaching this line costs a solved
+     * Turnstile challenge and one of 5 sign-ups per hour per IP, so probing a
+     * list of addresses is slow and expensive instead of instant.
+     */
+    if (!data.session && data.user && data.user.identities?.length === 0) {
+      setLoading(false);
+      captcha.reset();
+      toast.error("Bu e-poçt artıq qeydiyyatdadır. Daxil ol və ya şifrəni bərpa et.");
+      router.replace(`/daxil-ol?redirect=${encodeURIComponent(redirect)}`);
+      return;
+    }
+
     if (data.session) {
       // Confirmation is off — the account is already signed in, so go straight
       // to the panel. `loading` stays true for the length of the navigation.
       navigateAfterAuth(redirect);
     } else {
       setLoading(false);
-      // Also the response when the address already exists — identical wording,
-      // so a bulk prober learns nothing either way.
+      // Reached for a new address AND for an existing unconfirmed one; both are
+      // sent a link, so the wording is true in either case.
       toast.success(
         "Təsdiq linki e-poçtuna göndərildi. Zəhmət olmasa e-poçtunu yoxla.",
       );

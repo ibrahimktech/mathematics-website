@@ -247,9 +247,19 @@ in client components); `rate-limit.ts` / `log.ts` / `request.ts` are `server-onl
   cold start, and blind to requests that hit Supabase Auth directly. Supabase's
   own Auth limits + CAPTCHA are the real ceiling — see README §8.2. Lockouts are
   keyed per **(IP + account)** via `authKeys()` so nobody can lock a victim out.
-- **Never reveal whether an account exists.** Sign-in, sign-up and reset all
+- **Sign-in and password reset never reveal whether an account exists.** Both
   return one generic message. Don't "improve" the UX by branching on
-  `error.message.includes("already")` — that's an enumeration oracle.
+  `error.message.includes("already")` — that would be an enumeration oracle.
+- **Sign-up is the deliberate exception** (owner's product decision, taken with
+  the trade-off understood). `SignUpForm` branches on Supabase's obfuscation
+  marker — an empty `data.user.identities` array, which means an existing
+  CONFIRMED account and **no mail sent** — and says so. A new address and an
+  existing UNCONFIRMED one both return one identity and both are really sent a
+  link, so they keep the "check your inbox" message and it stays true. Before
+  this, a user who had forgotten they had an account was told to check an inbox
+  that would never receive anything. What keeps it from being a free enumeration
+  API is Turnstile plus the 5/hour/IP sign-up limit. **Do not extend this
+  disclosure to sign-in or reset.**
 - **`safeRedirectPath()` for every `?redirect=`.** `startsWith("/") &&
   !startsWith("//")` is NOT sufficient — browsers read `/\host` as
   protocol-relative. Never build a Supabase `emailRedirectTo` from user input;
