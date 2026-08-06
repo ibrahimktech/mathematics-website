@@ -11,6 +11,14 @@ import { useSessionUser } from "@/lib/account/use-user";
 import { navigateAfterAuth } from "@/lib/account/navigate";
 import { beginSignIn, reportSignIn } from "@/lib/actions/account";
 import { safeRedirectPath } from "@/lib/security/redirect";
+import {
+  TURNSTILE_INCOMPLETE_MESSAGE,
+  TURNSTILE_UNAVAILABLE_MESSAGE,
+} from "@/lib/security/turnstile";
+import {
+  TurnstileField,
+  useTurnstileToken,
+} from "@/components/account/TurnstileField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +32,14 @@ import { Label } from "@/components/ui/label";
  * the outcome so repeated failures escalate into a temporary lockout. The UI
  * never distinguishes "no such account" from "wrong password" — both produce
  * the single generic message, so this form cannot be used to enumerate users.
+ *
+ * Turnstile guards this form too. That is not optional: Supabase's CAPTCHA
+ * setting is project-wide, and once it is on the password grant on /auth/v1/token
+ * requires a token exactly like /signup does. It also earns its keep — it is the
+ * only control that reaches credential-stuffing traffic aimed straight at the
+ * Auth API, which the in-process limiter never sees. The widget is invisible
+ * unless Cloudflare decides a visitor must prove something, so a returning
+ * student sees no change at all.
  */
 export function SignInForm() {
   const params = useSearchParams();
@@ -31,6 +47,7 @@ export function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const captcha = useTurnstileToken();
 
   // Only allow same-origin relative paths — see lib/security/redirect.ts for
   // the bypasses (`/\host`, `/%09//host`, …) a naive prefix check lets through.
@@ -52,9 +69,20 @@ export function SignInForm() {
     const normalizedEmail = email.trim().toLowerCase();
     setLoading(true);
 
+    const captchaToken = (await captcha.waitForToken()) || undefined;
+    if (captcha.enabled && !captchaToken) {
+      setLoading(false);
+      toast.error(
+        captcha.unavailable()
+          ? TURNSTILE_UNAVAILABLE_MESSAGE
+          : TURNSTILE_INCOMPLETE_MESSAGE,
+      );
+      return;
+    }
+
     // Server-side throttle + lockout. Runs BEFORE Supabase is contacted, so a
     // locked-out attempt costs the attacker a request and gains them nothing.
-    const gate = await beginSignIn(normalizedEmail);
+    const gate = await beginSignIn(normalizedEmail, captchaToken);
     if (!gate.ok) {
       setLoading(false);
       toast.error(gate.error);
@@ -65,6 +93,7 @@ export function SignInForm() {
     const { error } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,
+      options: { captchaToken },
     });
 
     // Record the outcome so failures escalate and a success clears the counter.
@@ -74,6 +103,8 @@ export function SignInForm() {
 
     if (error) {
       setLoading(false);
+      // Supabase has consumed the token by now — re-arm before the next attempt.
+      captcha.reset();
       // Deliberately identical for "unknown account", "wrong password" and
       // "unconfirmed email" — the real reason is only ever in the server log.
       toast.error("E-poçt və ya şifrə yanlışdır.");
@@ -119,10 +150,13 @@ export function SignInForm() {
           className="mt-1.5"
         />
       </div>
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading && <Loader2 className="animate-spin" />}
-        Daxil ol
-      </Button>
+      <div>
+        <TurnstileField {...captcha.fieldProps} action="signin" />
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading && <Loader2 className="animate-spin" />}
+          Daxil ol
+        </Button>
+      </div>
     </form>
   );
 }

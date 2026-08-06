@@ -7,6 +7,14 @@ import { Loader2 } from "lucide-react";
 import { requestPasswordReset } from "@/lib/actions/account";
 import { validateEmail } from "@/lib/security/password";
 import { safeRedirectPath } from "@/lib/security/redirect";
+import {
+  TURNSTILE_INCOMPLETE_MESSAGE,
+  TURNSTILE_UNAVAILABLE_MESSAGE,
+} from "@/lib/security/turnstile";
+import {
+  TurnstileField,
+  useTurnstileToken,
+} from "@/components/account/TurnstileField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +31,11 @@ import { Label } from "@/components/ui/label";
  * The token in the mail is issued and enforced by Supabase Auth: single-use,
  * expiring, and consumed the moment the new password is set. It is never handled,
  * stored or logged by this application.
+ *
+ * The Turnstile token is the one thing that has to be produced here rather than
+ * on the server: /recover is CAPTCHA-gated like /signup, and only a browser can
+ * solve the challenge. It is handed to the action, which passes it straight to
+ * Supabase — protecting the mail quota from being drained by a script.
  */
 export function ResetRequestForm() {
   const params = useSearchParams();
@@ -30,6 +43,7 @@ export function ResetRequestForm() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const captcha = useTurnstileToken();
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,11 +53,24 @@ export function ResetRequestForm() {
       return;
     }
     setLoading(true);
-    const result = await requestPasswordReset(email, redirect);
+
+    const captchaToken = (await captcha.waitForToken()) || undefined;
+    if (captcha.enabled && !captchaToken) {
+      setLoading(false);
+      toast.error(
+        captcha.unavailable()
+          ? TURNSTILE_UNAVAILABLE_MESSAGE
+          : TURNSTILE_INCOMPLETE_MESSAGE,
+      );
+      return;
+    }
+
+    const result = await requestPasswordReset(email, redirect, captchaToken);
     setLoading(false);
 
     if (!result.ok) {
-      // Only ever a throttling message — never "no such account".
+      // Only ever a throttling or captcha message — never "no such account".
+      captcha.reset();
       toast.error(result.error);
       return;
     }
@@ -79,10 +106,13 @@ export function ResetRequestForm() {
           className="mt-1.5"
         />
       </div>
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading && <Loader2 className="animate-spin" />}
-        Yeniləmə linki göndər
-      </Button>
+      <div>
+        <TurnstileField {...captcha.fieldProps} action="password-reset" />
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading && <Loader2 className="animate-spin" />}
+          Yeniləmə linki göndər
+        </Button>
+      </div>
     </form>
   );
 }

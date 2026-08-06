@@ -16,6 +16,14 @@ import {
   validatePassword,
 } from "@/lib/security/password";
 import { safeAbsoluteRedirect, safeRedirectPath } from "@/lib/security/redirect";
+import {
+  TURNSTILE_INCOMPLETE_MESSAGE,
+  TURNSTILE_UNAVAILABLE_MESSAGE,
+} from "@/lib/security/turnstile";
+import {
+  TurnstileField,
+  useTurnstileToken,
+} from "@/components/account/TurnstileField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +38,13 @@ import { Label } from "@/components/ui/label";
  * normalised values actually submitted, so editing the client bundle buys
  * nothing. The success message is identical for a new and an existing address
  * so the form cannot be used to test which e-mails have accounts.
+ *
+ * BOT PROTECTION: a Cloudflare Turnstile token rides along as
+ * `options.captchaToken`. Supabase Auth verifies it against Cloudflare before it
+ * will create the account — which is what makes it unskippable, since it also
+ * applies to a script that ignores this form and posts to /auth/v1/signup with
+ * the public anon key. Stripping the widget from the DOM therefore does not
+ * bypass anything; it just produces the same failure as an invalid token.
  */
 export function SignUpForm() {
   const router = useRouter();
@@ -40,6 +55,7 @@ export function SignUpForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const captcha = useTurnstileToken();
 
   // Only allow same-origin relative paths (see lib/security/redirect.ts).
   const redirect = safeRedirectPath(params.get("redirect"), "/panel");
@@ -71,8 +87,27 @@ export function SignUpForm() {
 
     setLoading(true);
 
+    // The invisible widget usually has a token long before this, but a very fast
+    // submit can beat it — so wait rather than failing someone who did nothing wrong.
+    const captchaToken = (await captcha.waitForToken()) || undefined;
+    if (captcha.enabled && !captchaToken) {
+      setLoading(false);
+      toast.error(
+        captcha.unavailable()
+          ? TURNSTILE_UNAVAILABLE_MESSAGE
+          : TURNSTILE_INCOMPLETE_MESSAGE,
+      );
+      return;
+    }
+
     // Server-side validation + sign-up rate limit. Returns the cleaned values.
-    const gate = await beginSignUp({ email, password, firstName, lastName });
+    const gate = await beginSignUp({
+      email,
+      password,
+      firstName,
+      lastName,
+      captchaToken,
+    });
     if (!gate.ok) {
       setLoading(false);
       toast.error(gate.error);
@@ -89,6 +124,9 @@ export function SignUpForm() {
           first_name: gate.firstName,
           last_name: gate.lastName,
         },
+        // Sibling of `data`, never inside it: anything in `data` is stored as
+        // raw_user_meta_data and read by the handle_new_user trigger.
+        captchaToken,
         // Built from our own origin, never from `?redirect=`, so a crafted link
         // can't turn the confirmation mail into a token hand-off to another host.
         emailRedirectTo: safeAbsoluteRedirect(window.location.origin, redirect, "/panel"),
@@ -96,6 +134,8 @@ export function SignUpForm() {
     });
     if (error) {
       setLoading(false);
+      // The token is spent either way, so re-arm the widget before the retry.
+      captcha.reset();
       // No branch on "already registered": telling the visitor that an address
       // is taken is an account-enumeration oracle. One message for every failure.
       toast.error("Qeydiyyat alınmadı. Yenidən cəhd edin.");
@@ -172,10 +212,16 @@ export function SignUpForm() {
           Ən azı {MIN_PASSWORD_LENGTH} simvol; böyük hərf, kiçik hərf və rəqəm.
         </p>
       </div>
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading && <Loader2 className="animate-spin" />}
-        Qeydiyyatdan keç
-      </Button>
+      {/* Invisible for normal visitors; only takes up space if Cloudflare
+          decides this one has to solve a challenge. Grouped with the button so
+          the silent case leaves the form's spacing exactly as it was. */}
+      <div>
+        <TurnstileField {...captcha.fieldProps} action="signup" />
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading && <Loader2 className="animate-spin" />}
+          Qeydiyyatdan keç
+        </Button>
+      </div>
     </form>
   );
 }

@@ -14,6 +14,11 @@ import {
   validatePassword,
 } from "@/lib/security/password";
 import { safeRedirectPath } from "@/lib/security/redirect";
+import {
+  TURNSTILE_INCOMPLETE_MESSAGE,
+  isTurnstileConfigured,
+  looksLikeTurnstileToken,
+} from "@/lib/security/turnstile";
 
 /**
  * Server-side gate for the authentication forms.
@@ -52,6 +57,37 @@ function throttleMessage(seconds: number): string {
     : `Çox sayda cəhd. ${minutes} dəqiqə sonra yenidən yoxlayın.`;
 }
 
+/**
+ * Refuse a submission that arrived without a Turnstile token.
+ *
+ * This is a PRESENCE check, not a verification — deliberately. The token is
+ * verified by Supabase Auth against Cloudflare (Dashboard → Authentication →
+ * Attack Protection), which is the only placement that also covers a bot
+ * posting straight to the Auth API. Verifying here as well would spend the
+ * single-use token and make Supabase's own check fail with
+ * `timeout-or-duplicate`, breaking every real sign-up. See lib/security/turnstile.ts.
+ *
+ * So what does this buy? It fails fast with a message that says what actually
+ * went wrong (instead of the deliberately vague Supabase error), it stops a
+ * tampered client from spending a Supabase rate-limit slot, and it leaves a log
+ * line when someone strips the widget. Skipped entirely when no site key is
+ * configured, so a developer without Turnstile keys is unaffected.
+ *
+ * Call it BEFORE `consume()`: a visitor whose widget was slow or blocked must
+ * not lose one of their few sign-up / reset attempts over it.
+ */
+function captchaGate(
+  scope: "signin" | "signup" | "reset",
+  token: unknown,
+  email: string,
+  ip: string,
+): GateResult {
+  if (!isTurnstileConfigured) return { ok: true };
+  if (looksLikeTurnstileToken(token)) return { ok: true };
+  logSecurityEvent("auth.captcha_missing", { email, ip, scope });
+  return { ok: false, error: TURNSTILE_INCOMPLETE_MESSAGE };
+}
+
 /* ============================================================== sign-in ==== */
 
 /**
@@ -59,13 +95,19 @@ function throttleMessage(seconds: number): string {
  * for this (IP, account) pair and for the IP as a whole, and refuses while a
  * lockout is in force.
  */
-export async function beginSignIn(rawEmail: string): Promise<GateResult> {
+export async function beginSignIn(
+  rawEmail: string,
+  captchaToken?: string,
+): Promise<GateResult> {
   const email = normalizeEmail(String(rawEmail ?? ""));
   const ip = await callerIp();
 
   // Malformed input never reaches Supabase — and returns the SAME generic
   // message as a wrong password, so this can't be used to probe addresses.
   if (validateEmail(email)) return { ok: false, error: GENERIC_CREDENTIALS };
+
+  const captcha = captchaGate("signin", captchaToken, email, ip);
+  if (!captcha.ok) return captcha;
 
   const keys = authKeys("signin", ip, email);
   for (const key of [keys.ipAccount, keys.ip]) {
@@ -121,6 +163,8 @@ export type SignUpFields = {
   password: string;
   firstName: string;
   lastName: string;
+  /** Turnstile token. Checked for presence here; VERIFIED by Supabase Auth. */
+  captchaToken?: string;
 };
 
 /**
@@ -154,6 +198,9 @@ export async function beginSignUp(
     name: `${firstName} ${lastName}`,
   });
   if (passwordError) return { ok: false, error: passwordError };
+
+  const captcha = captchaGate("signup", fields?.captchaToken, email, ip);
+  if (!captcha.ok) return captcha;
 
   const verdict = consume(`signup:ip:${ip}`, RATE_RULES.signUp);
   if (!verdict.allowed) {
@@ -190,10 +237,16 @@ export async function beginSignUp(
  * The token itself is issued and enforced by Supabase Auth: it is single-use,
  * expires (Dashboard → Authentication → Email → OTP expiry), and consuming it
  * invalidates the link. We never see, store or log it.
+ *
+ * `captchaToken` comes from the browser widget because the /recover endpoint is
+ * CAPTCHA-gated like /signup; only the token travels, the Supabase call itself
+ * still happens here. A missing token IS reported (the visitor has to know to
+ * retry) and still reveals nothing about whether the account exists.
  */
 export async function requestPasswordReset(
   rawEmail: string,
   redirectPath?: string,
+  captchaToken?: string,
 ): Promise<GateResult> {
   const email = normalizeEmail(String(rawEmail ?? ""));
   const ip = await callerIp();
@@ -203,6 +256,9 @@ export async function requestPasswordReset(
 
   if (!isSupabaseConfigured) return generic;
   if (validateEmail(email)) return generic;
+
+  const captcha = captchaGate("reset", captchaToken, email, ip);
+  if (!captcha.ok) return captcha;
 
   const keys = authKeys("reset", ip, email);
   for (const key of [keys.ipAccount, keys.ip]) {
@@ -234,7 +290,10 @@ export async function requestPasswordReset(
 
   try {
     const supabase = await createClient();
-    await supabase.auth.resetPasswordForEmail(email, { redirectTo: target });
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: target,
+      captchaToken,
+    });
   } catch {
     // Swallow: a Supabase error must not turn into a signal about the account.
   }

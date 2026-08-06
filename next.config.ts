@@ -17,6 +17,15 @@ const supabaseOrigin = (() => {
 const supabaseWs = supabaseOrigin.replace(/^https:/, "wss:");
 
 /**
+ * Cloudflare Turnstile. The bot-protection widget on the auth forms loads
+ * api.js from here and renders its challenge in an iframe served from the same
+ * origin, so it needs script-src + frame-src + connect-src. Without all three
+ * the widget fails silently and NOBODY CAN SIGN UP — the token never arrives,
+ * and Supabase Auth rejects the request for want of a captcha.
+ */
+const turnstileOrigin = "https://challenges.cloudflare.com";
+
+/**
  * Content-Security-Policy.
  *
  * `script-src` keeps `'unsafe-inline'` on purpose: the App Router streams the
@@ -38,7 +47,12 @@ function contentSecurityPolicy(): string {
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
     // 'unsafe-eval' is required by React Fast Refresh in `next dev` only.
-    "script-src": ["'self'", "'unsafe-inline'", ...(isProd ? [] : ["'unsafe-eval'"])],
+    "script-src": [
+      "'self'",
+      "'unsafe-inline'",
+      turnstileOrigin,
+      ...(isProd ? [] : ["'unsafe-eval'"]),
+    ],
     // Tailwind v4 and KaTeX both emit inline style attributes.
     "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "data:", "blob:", ...(supabaseOrigin ? [supabaseOrigin] : [])],
@@ -46,10 +60,16 @@ function contentSecurityPolicy(): string {
     "connect-src": [
       "'self'",
       ...(supabaseOrigin ? [supabaseOrigin, supabaseWs] : []),
+      turnstileOrigin,
       ...(isProd ? [] : ["ws:", "http://localhost:*"]),
     ],
-    // Receipt PDFs open from Supabase signed URLs.
-    "frame-src": ["'self'", ...(supabaseOrigin ? [supabaseOrigin] : [])],
+    // Receipt PDFs open from Supabase signed URLs; the Turnstile challenge is
+    // an iframe we embed (frame-ancestors 'none' still stops anyone framing US).
+    "frame-src": [
+      "'self'",
+      ...(supabaseOrigin ? [supabaseOrigin] : []),
+      turnstileOrigin,
+    ],
     "worker-src": ["'self'", "blob:"],
     "manifest-src": ["'self'"],
     "media-src": ["'self'"],

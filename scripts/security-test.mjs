@@ -52,10 +52,35 @@ async function tableExists(t) {
   return true;
 }
 
+/**
+ * A client acting as `email`, using the ANON key + that student's own JWT — so
+ * every assertion below is judged by RLS exactly as it would be in the browser.
+ *
+ * The session is minted through a throwaway SERVICE-ROLE client rather than by
+ * signing in with the anon key directly. Reason: with Cloudflare Turnstile
+ * enabled (Authentication → Attack Protection), Supabase requires a captcha
+ * token on the password grant, and a script cannot solve a challenge — but it
+ * skips that check for callers presenting service-role credentials. Only the
+ * sign-in transport changes; the tokens handed over are the student's.
+ *
+ * The bootstrap client MUST be a throwaway. Signing in on the shared `admin`
+ * client would swap its Authorization header from the service-role key to the
+ * student's JWT and quietly break every admin call after it.
+ */
 async function signedInClient(email, password) {
-  const c = createClient(URL_, ANON, { auth: { persistSession: false } });
-  const { error } = await c.auth.signInWithPassword({ email, password });
+  const bootstrap = createClient(URL_, SR, { auth: { persistSession: false } });
+  const { data, error } = await bootstrap.auth.signInWithPassword({ email, password });
   if (error) throw new Error(`sign-in failed for ${email}: ${error.message}`);
+  if (!data?.session) throw new Error(`no session returned for ${email}`);
+
+  const c = createClient(URL_, ANON, { auth: { persistSession: false } });
+  const { error: sessionError } = await c.auth.setSession({
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+  });
+  if (sessionError) {
+    throw new Error(`session hand-off failed for ${email}: ${sessionError.message}`);
+  }
   return c;
 }
 

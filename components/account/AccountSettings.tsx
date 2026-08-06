@@ -11,6 +11,14 @@ import {
   validateNewPassword,
 } from "@/lib/actions/account";
 import { MIN_PASSWORD_LENGTH, cleanName, validateName } from "@/lib/security/password";
+import {
+  TURNSTILE_INCOMPLETE_MESSAGE,
+  TURNSTILE_UNAVAILABLE_MESSAGE,
+} from "@/lib/security/turnstile";
+import {
+  TurnstileField,
+  useTurnstileToken,
+} from "@/components/account/TurnstileField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +33,12 @@ import { Label } from "@/components/ui/label";
  * XSS payload) can lock the real owner out by silently setting a new password.
  * Re-authentication turns session access alone into something that is no longer
  * enough. A successful change also revokes every OTHER session.
+ *
+ * That re-authentication is a password grant, so it needs a Turnstile token
+ * like any other sign-in once Supabase's project-wide CAPTCHA is on — without
+ * one, changing your password would fail. The widget is invisible in practice;
+ * only the password form carries it, since renaming yourself is not a
+ * credential operation.
  */
 export function AccountSettings({
   userId,
@@ -41,6 +55,7 @@ export function AccountSettings({
   const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [savingPw, setSavingPw] = useState(false);
+  const captcha = useTurnstileToken();
 
   async function saveName(e: React.FormEvent) {
     e.preventDefault();
@@ -97,6 +112,17 @@ export function AccountSettings({
       return;
     }
 
+    const captchaToken = (await captcha.waitForToken()) || undefined;
+    if (captcha.enabled && !captchaToken) {
+      setSavingPw(false);
+      toast.error(
+        captcha.unavailable()
+          ? TURNSTILE_UNAVAILABLE_MESSAGE
+          : TURNSTILE_INCOMPLETE_MESSAGE,
+      );
+      return;
+    }
+
     const supabase = createClient();
 
     // RE-AUTHENTICATE: prove the person at the keyboard knows the current
@@ -104,7 +130,11 @@ export function AccountSettings({
     const { error: reauthError } = await supabase.auth.signInWithPassword({
       email,
       password: currentPassword,
+      options: { captchaToken },
     });
+    // Spent either way, and this form stays mounted for a second attempt —
+    // re-arm now rather than on each failure branch below.
+    captcha.reset();
     if (reauthError) {
       await reportPasswordChange(false);
       setSavingPw(false);
@@ -201,13 +231,16 @@ export function AccountSettings({
               Ən azı {MIN_PASSWORD_LENGTH} simvol; böyük hərf, kiçik hərf və rəqəm.
             </p>
           </div>
-          <Button
-            type="submit"
-            variant="outline"
-            disabled={savingPw || !password || !currentPassword}
-          >
-            {savingPw && <Loader2 className="animate-spin" />} Şifrəni yenilə
-          </Button>
+          <div>
+            <TurnstileField {...captcha.fieldProps} action="password-change" />
+            <Button
+              type="submit"
+              variant="outline"
+              disabled={savingPw || !password || !currentPassword}
+            >
+              {savingPw && <Loader2 className="animate-spin" />} Şifrəni yenilə
+            </Button>
+          </div>
         </form>
       </section>
     </div>

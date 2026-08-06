@@ -24,6 +24,8 @@ export type SecurityEvent =
   | "auth.sign_in_locked"
   | "auth.sign_up_attempt"
   | "auth.sign_up_throttled"
+  /** A form submitted with no captcha token while Turnstile is configured. */
+  | "auth.captcha_missing"
   | "auth.password_reset_requested"
   | "auth.password_reset_throttled"
   | "auth.password_changed"
