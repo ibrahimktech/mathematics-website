@@ -8,18 +8,36 @@ import {
 } from "./config";
 
 /**
- * Refreshes the Supabase auth session and guards `/admin/*`.
- * - Unauthenticated visitors to any admin page are redirected to the shared
- *   login `/daxil-ol` (there is no separate admin login page — admins sign in
- *   like any user, and the `public.admins` allow-list is what unlocks the panel).
- * - Authenticated but NON-admin visitors (not in `public.admins`) are sent to
- *   the public home page — being logged in is not enough to enter the panel.
+ * Areas any SIGNED-IN user may enter — no allow-list, just an account. Kept as
+ * a list because these must be handled BEFORE the admin logic below: falling
+ * through to it would bounce an ordinary student to the home page for failing
+ * an `is_admin()` check that was never meant to apply to them.
+ *
+ * Every entry must also appear in the `matcher` in `middleware.ts`, or the
+ * middleware never runs for it.
+ */
+const MEMBER_AREAS = ["/panel", "/resurslar"];
+
+function isMemberArea(pathname: string): boolean {
+  return MEMBER_AREAS.some(
+    (base) => pathname === base || pathname.startsWith(base + "/"),
+  );
+}
+
+/**
+ * Refreshes the Supabase auth session and guards the private areas.
+ * - `/panel/*` and `/resurslar` need only an ACCOUNT. Anonymous visitors go to
+ *   `/daxil-ol` with a `redirect` back, so they return to the page they wanted.
+ * - `/admin/*` needs the `public.admins` allow-list on top. Unauthenticated
+ *   visitors are redirected to the same shared login (there is no separate admin
+ *   login page); authenticated but NON-admin visitors are sent to the public
+ *   home page — being logged in is not enough to enter the panel.
  * If Supabase isn't configured yet, nothing is blocked (pre-setup).
  *
  * This is an optimistic first line of defense for a fast redirect; the real
- * gate is `requireAdminPage()` in the admin layout plus the RLS policies. Never
- * rely on middleware alone (routes can be matched incompletely, and mutations
- * bypass page rendering entirely).
+ * gates are `requireUser()` / `requireAdminPage()` at render time plus the RLS
+ * policies. Never rely on middleware alone (routes can be matched incompletely,
+ * and mutations bypass page rendering entirely).
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -60,10 +78,12 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // --- Student dashboard (/panel): ANY signed-in user may enter; there is no
-  // admin allow-list here. Handled first and returned early so the admin logic
-  // below is untouched. Anonymous visitors go to the student login page.
-  if (pathname.startsWith("/panel")) {
+  // --- Member areas (/panel, /resurslar): ANY signed-in user may enter; there
+  // is no admin allow-list here. Handled first and returned early so the admin
+  // logic below is untouched. Anonymous visitors go to the login page with a
+  // `redirect` back, which is what makes the public "Resurslar" navbar link
+  // work for a signed-out visitor instead of dead-ending.
+  if (isMemberArea(pathname)) {
     if (!user) {
       const url = request.nextUrl.clone();
       url.pathname = "/daxil-ol";

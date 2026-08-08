@@ -207,6 +207,63 @@ is hardcoded. Routing (all Azerbaijani):
   untouched. Exam catalogue keeps a denormalized `exams.question_count` (trigger)
   so public reads never touch the admin-only questions table.
 
+## Resources (members-only PDF library)
+
+- **⚠️ REQUIRED: apply `supabase/resources-schema.sql`** (additive; creates ONE
+  table + ONE bucket, drops nothing). Until then the pages render their empty
+  state rather than crashing (`getResources()` swallows the missing table).
+- **Postgres stores metadata, Storage stores the PDF.** `public.resources`
+  (title/description/author/`category_slug`/`file_path`/`file_name`/`file_size`)
+  + the **private `resources` bucket**. `category_slug` matches a blog category
+  slug exactly like `exams.category_slug` (no FK — renaming a category must
+  never delete content). There is no cover image and no ratings/views/tags: the
+  library is a shelf, not a catalogue.
+- **Routing: `/resurslar` is a PUBLIC-shell page with a members-only body.** The
+  link sits in `PRIMARY_NAV` (navbar + mobile menu) and the footer so every
+  visitor discovers it; the page itself calls `requireUser("/resurslar")`, so a
+  signed-out click lands on `/daxil-ol?redirect=/resurslar` and returns here
+  after sign-in. The teacher manages at `/admin/resources`.
+  **It is NOT under `/panel`**, so the three things `/panel` got for free had to
+  be added explicitly — all three must stay in step:
+  (1) `MEMBER_AREAS` in `lib/supabase/middleware.ts` + the `matcher` in
+  `middleware.ts`. `/resurslar` MUST be handled by the member branch: falling
+  through to the admin branch would bounce ordinary students to `/` for failing
+  an `is_admin()` check that was never meant to apply to them.
+  (2) `no-store` headers in `next.config.ts` — a cached `/resurslar` is one
+  member's page served to a visitor who may have no account at all.
+  (3) `export const dynamic = "force-dynamic"` on the page.
+- **Reads are `authenticated`-only at the DATABASE level.** `public.resources`
+  has a SELECT policy for `authenticated` and **no anon policy**, so the library
+  is members-only even against a direct PostgREST call — the redirect is UX, not
+  the boundary. Writes are `is_admin()`-only. Same for the bucket: any signed-in
+  user may read (that IS the intended permission — every student may read every
+  book), admins alone may write/delete, anonymous gets nothing.
+- **PDFs are uploaded browser → Storage directly** (`uploadResourcePdf` in
+  `lib/upload.ts`, alongside the image uploaders), NOT through a Server Action:
+  the action body limit is 6 MB here and 4.5 MB on Vercel, so a book physically
+  cannot be proxied. **Storage RLS is therefore the real upload gate**; the
+  `%PDF-` magic-byte sniff, the 50 MB cap and `allowed_mime_types` are
+  correctness, not authorization. Keep `RESOURCE_PDF_MAX_MB` in step with the
+  bucket's `file_size_limit`.
+- **The client never sees a storage path.** `getResources()` selects every
+  column *except* `file_path`; a resource is requested by **id** and
+  `fetchResourceUrl()` (`lib/actions/resources.ts`) looks the path up itself,
+  then mints a **1-hour signed URL** with the caller's own session — so there is
+  no IDOR, no traversal, and no proxying of bytes through the app server.
+  `mode:"download"` adds the Content-Disposition filename.
+- **Orphan ordering is deliberate, per operation.** create: file is already up →
+  if the INSERT fails the file is deleted. replace: upload new → repoint the row
+  → *then* delete the old one (a failure anywhere leaves a resource that still
+  opens). delete: **file first, then row** — Storage `remove()` is idempotent, so
+  a failed row-delete is safely retried, whereas the reverse order would strand a
+  row pointing at nothing. A partial failure returns `warning` on an `ok: true`
+  result rather than being reported as clean success.
+- Metadata is rendered as **plain text only** — never through `LatexContent` /
+  `dangerouslySetInnerHTML`. Lengths are capped in zod *and* in DB check
+  constraints, so a direct REST call can't store a 2 MB title.
+- No service-role key anywhere in this feature: every operation runs under a
+  verified session, so RLS judges it.
+
 ## Analytics (admin-only)
 
 - **Sales analytics** (`/admin/analytics/satis`) are derived from `purchases`
@@ -239,17 +296,20 @@ is hardcoded. Routing (all Azerbaijani):
 `supabase/analytics-schema.sql` (blog_views + admin aggregate RPCs) are the
 sources of truth (tables, RLS, storage buckets `article-images` public +
 `receipts` private, SECURITY DEFINER `is_admin`/`has_exam_access`/
-`get_exam_questions`/`blog_view_*`), plus four additive patches applied on top:
+`get_exam_questions`/`blog_view_*`), plus five additive patches applied on top:
 `supabase/security-hardening.sql`, `supabase/exam-attempt-limit.sql`,
-`supabase/blog-archives.sql` (the `blog_archive_counts()` sidebar aggregate) and
-`supabase/exam-display-order.sql` (`exams.display_order` + `reorder_exams()`). The
-service-role key **cannot run DDL** —
+`supabase/blog-archives.sql` (the `blog_archive_counts()` sidebar aggregate),
+`supabase/exam-display-order.sql` (`exams.display_order` + `reorder_exams()`) and
+`supabase/resources-schema.sql` (`public.resources` + the private `resources`
+bucket). The service-role key **cannot run DDL** —
 apply schema by pasting SQL into the Supabase SQL editor. `supabase/reset-exams.sql`
 wipes exam/sales data (keeps users/blog/settings); `supabase/reset-sales.sql` is
 the narrow version — purchases + the `exam_access` they granted only, so exams and
 accounts survive (use it to clear test revenue from the analytics). Both leave the
 `receipts` bucket alone: run `node scripts/clear-receipts.mjs` for that. Domain types: `lib/types.ts`,
-`lib/exams/types.ts`, `lib/student/types.ts`.
+`lib/exams/types.ts`, `lib/student/types.ts`, `lib/resources/types.ts`. There are
+no generated Supabase types — domain types are hand-written; don't add a
+conflicting generated set.
 
 ## Security (`lib/security/*`)
 

@@ -12,6 +12,13 @@ export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 export const ARTICLE_IMAGES_BUCKET = "article-images";
 
 /**
+ * PRIVATE bucket holding the resource-library PDFs (`supabase/resources-schema.sql`).
+ * Unlike `article-images` it has no public URL: files are served only through
+ * short-lived signed URLs minted for a verified session.
+ */
+export const RESOURCES_BUCKET = "resources";
+
+/**
  * Cookie attributes for the Supabase auth cookies, applied identically by the
  * browser client, the server client and the middleware so a cookie written by
  * one is never silently re-scoped by another.

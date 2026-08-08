@@ -180,6 +180,24 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
         ],
       },
+      /**
+       * The resource library sits in the PUBLIC nav but its body is
+       * members-only, so it gets the same treatment as /panel: never store it.
+       * A cached /resurslar is one member's page handed to the next visitor —
+       * and here that visitor might not have an account at all.
+       */
+      {
+        source: "/resurslar/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
+        ],
+      },
+      {
+        source: "/resurslar",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
+        ],
+      },
       {
         source: "/admin/:path*",
         headers: [

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   GraduationCap,
+  BookOpen,
   FilePlus2,
   FileText,
   FilePen,
@@ -49,6 +50,12 @@ const GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/exams", label: "İmtahanlar", icon: GraduationCap, match: "/admin/exams" },
       { href: "/admin/exams/new", label: "Yeni imtahan", icon: FilePlus2 },
+    ],
+  },
+  {
+    title: "Resurslar",
+    items: [
+      { href: "/admin/resources", label: "PDF kitabxana", icon: BookOpen },
     ],
   },
   {

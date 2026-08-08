@@ -7,14 +7,18 @@
  * only ever create their OWN pending purchase (never self-approve, never grant
  * themselves access, never forge a score), receipts are private, settings are
  * read-only to students, and the admin allow-list can't be self-joined. Also
- * checks that the approval transition is race-safe, and that the 2-attempts-per-
- * exam limit holds against DIRECT API writes. Cleans everything up.
+ * checks that the approval transition is race-safe, that the 2-attempts-per-
+ * exam limit holds against DIRECT API writes, and that the PDF resource library
+ * is readable by any signed-in student, writable by nobody but an admin, and
+ * completely invisible to anonymous callers. Cleans everything up.
  *
- * Run (after applying supabase/exam-platform-schema.sql
- *      and  supabase/exam-attempt-limit.sql):
+ * Run (after applying supabase/exam-platform-schema.sql,
+ *      supabase/exam-attempt-limit.sql and supabase/resources-schema.sql —
+ *      the resource section skips itself if the last one is missing):
  *   node scripts/security-test.mjs
  */
 import { readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
 // --- load env from .env.local -------------------------------------------------
@@ -101,6 +105,14 @@ const created = {
   examLimit: null,
   examRace: null,
 };
+
+/**
+ * Resource-library fixtures. Kept OUT of `created` on purpose: that object is
+ * iterated as a list of EXAM ids during cleanup, and a resource id has no
+ * business being deleted from the exams table.
+ */
+let createdResourceId = null;
+let createdResourcePath = null;
 
 async function main() {
   console.log("\n=== Exam-platform authorization audit ===\n");
@@ -472,9 +484,90 @@ async function main() {
     check("owner CAN sign own receipt", !ownSign.error && !!ownSign.data?.signedUrl);
   }
 
+  // ------------------------------------------------------- resource library --
+  // Any SIGNED-IN student may read every resource and sign a URL for its PDF;
+  // nobody but an admin may write one, and anonymous callers get nothing at all.
+  // Skipped wholesale until supabase/resources-schema.sql has been applied.
+  if (await tableExists("resources")) {
+    console.log("\nresource library (members read, admins write):");
+    const resPath = `${new Date().getFullYear()}/${randomUUID()}.pdf`;
+    const PDF_BYTES = Buffer.from("%PDF-1.4\n% sectest\n", "utf8");
+
+    const seedUp = await admin.storage
+      .from("resources")
+      .upload(resPath, PDF_BYTES, { contentType: "application/pdf" });
+    check("seed: admin CAN upload a resource PDF", !seedUp.error, seedUp.error?.message ?? "");
+
+    const { data: seeded, error: seedErr } = await admin
+      .from("resources")
+      .insert({
+        title: `SecTest Resource ${rand}`,
+        author: "SecTest",
+        file_path: resPath,
+        file_name: "sectest.pdf",
+        file_size: PDF_BYTES.length,
+      })
+      .select("id")
+      .single();
+    check("seed: resource row created", !seedErr, seedErr?.message ?? "");
+    createdResourceId = seeded?.id ?? null;
+    createdResourcePath = resPath;
+
+    // --- table ---
+    const { data: anonRead } = await anon.from("resources").select("id");
+    check("anon CANNOT read the resources table", (anonRead ?? []).length === 0);
+
+    const { data: bRead } = await bC.from("resources").select("id").eq("id", createdResourceId);
+    check("student CAN read resources", (bRead ?? []).length === 1);
+
+    const bIns = await bC.from("resources").insert({
+      title: "hacked", file_path: `${new Date().getFullYear()}/${randomUUID()}.pdf`, file_name: "x.pdf",
+    });
+    check("student CANNOT insert a resource", !!bIns.error, bIns.error?.code ?? "");
+
+    await bC.from("resources").update({ title: "HACKED" }).eq("id", createdResourceId);
+    const { data: afterUpd } = await admin.from("resources").select("title").eq("id", createdResourceId).single();
+    check("student CANNOT edit resource metadata", afterUpd?.title !== "HACKED", `title=${afterUpd?.title}`);
+
+    await bC.from("resources").delete().eq("id", createdResourceId);
+    const { data: afterDel } = await admin.from("resources").select("id").eq("id", createdResourceId);
+    check("student CANNOT delete a resource", (afterDel ?? []).length === 1);
+
+    // --- storage ---
+    const anonDl = await anon.storage.from("resources").download(resPath);
+    check("anon CANNOT download a resource PDF", !!anonDl.error, anonDl.error?.message ?? "");
+    const anonSign = await anon.storage.from("resources").createSignedUrl(resPath, 60);
+    check("anon CANNOT sign a resource PDF", !!anonSign.error, anonSign.error?.message ?? "");
+
+    const bSign = await bC.storage.from("resources").createSignedUrl(resPath, 60);
+    check("student CAN sign a resource PDF", !bSign.error && !!bSign.data?.signedUrl, bSign.error?.message ?? "");
+
+    const bUp = await bC.storage
+      .from("resources")
+      .upload(`${new Date().getFullYear()}/${randomUUID()}.pdf`, PDF_BYTES, {
+        contentType: "application/pdf",
+      });
+    check("student CANNOT upload into the resources bucket", !!bUp.error, bUp.error?.message ?? "");
+
+    await bC.storage.from("resources").remove([resPath]);
+    const stillThere = await admin.storage.from("resources").download(resPath);
+    check("student CANNOT delete a resource PDF", !stillThere.error, stillThere.error?.message ?? "");
+  } else {
+    console.log("\nresource library: SKIPPED — apply supabase/resources-schema.sql first.");
+  }
+
   // ------------------------------------------------------------------ cleanup --
   console.log("\ncleanup:");
   await admin.storage.from("receipts").remove([`${A.id}/receipt-${rand}.png`]).catch(() => {});
+  if (createdResourcePath) {
+    await admin.storage.from("resources").remove([createdResourcePath]).catch(() => {});
+  }
+  // NOTE: no `.catch()` here — a PostgREST filter builder is a *thenable*, not a
+  // Promise, so `.catch` is undefined and calling it throws mid-teardown, which
+  // leaves real test data (published exams!) behind in the database.
+  if (createdResourceId) {
+    await admin.from("resources").delete().eq("id", createdResourceId);
+  }
   for (const id of Object.values(created)) {
     if (id) await admin.from("exams").delete().eq("id", id); // cascades questions/purchases/access/attempts
   }
@@ -488,8 +581,21 @@ async function main() {
 
 main().catch(async (e) => {
   console.error("\nERROR:", e.message);
-  for (const id of Object.values(created)) {
-    if (id) await admin.from("exams").delete().eq("id", id).catch(() => {});
+  /**
+   * Emergency teardown. Wrapped in try/catch rather than per-call `.catch()`:
+   * PostgREST query builders are thenables WITHOUT a `.catch` method, so
+   * `.delete().eq(...).catch(...)` throws a TypeError and aborts the cleanup it
+   * was meant to make safe — leaving published "SecTest" exams and test users in
+   * a live project. (`auth.admin.*` does return real Promises.)
+   */
+  try {
+    if (createdResourceId) await admin.from("resources").delete().eq("id", createdResourceId);
+    if (createdResourcePath) await admin.storage.from("resources").remove([createdResourcePath]);
+    for (const id of Object.values(created)) {
+      if (id) await admin.from("exams").delete().eq("id", id);
+    }
+  } catch (cleanupError) {
+    console.error("CLEANUP FAILED:", cleanupError.message);
   }
   for (const u of [A, B]) if (u.id) await admin.auth.admin.deleteUser(u.id).catch(() => {});
   process.exitCode = 1;

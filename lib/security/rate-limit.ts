@@ -70,6 +70,12 @@ export const RATE_RULES = {
   attemptAutoSubmit: { limit: 30, windowMs: 60_000 },
   /** Analytics beacon — generous, just stops one client inflating counts. */
   viewBeacon: { limit: 120, windowMs: 60_000 },
+  /**
+   * Signed-URL minting for library PDFs. A student is entitled to every
+   * resource, so this protects the signing endpoint rather than the files —
+   * far above opening a few books, low enough to stop a scripted loop.
+   */
+  resourceUrl: { limit: 60, windowMs: 60_000 },
 } satisfies Record<string, RateRule>;
 
 type Entry = {

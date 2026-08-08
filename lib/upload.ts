@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { ARTICLE_IMAGES_BUCKET } from "@/lib/supabase/config";
+import { ARTICLE_IMAGES_BUCKET, RESOURCES_BUCKET } from "@/lib/supabase/config";
 
 const ALLOWED = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -92,4 +92,87 @@ export function uploadArticleImage(file: File): Promise<string> {
 /** Upload an image used inside an exam question prompt or explanation. */
 export function uploadExamImage(file: File): Promise<string> {
   return uploadImage(file, "exam-questions/");
+}
+
+/* ======================= Resource library (private PDFs) ==================== */
+
+/**
+ * Max PDF size. Matches `file_size_limit` on the `resources` bucket in
+ * `supabase/resources-schema.sql` — keep the two in step, since Storage enforces
+ * its own copy and would otherwise reject a file this check let through.
+ */
+export const RESOURCE_PDF_MAX_MB = 50;
+const RESOURCE_PDF_MAX_BYTES = RESOURCE_PDF_MAX_MB * 1024 * 1024;
+
+/** Cheap pre-flight check (extension + declared type + size) for instant UX. */
+export function validateResourcePdf(file: File): string | null {
+  const looksPdf =
+    file.type === "application/pdf" && /\.pdf$/i.test(file.name);
+  if (!looksPdf) return "Yalnız PDF faylı yükləmək olar.";
+  if (file.size === 0) return "Fayl boşdur.";
+  if (file.size > RESOURCE_PDF_MAX_BYTES) {
+    return `Fayl ${RESOURCE_PDF_MAX_MB} MB-dan böyük ola bilməz.`;
+  }
+  return null;
+}
+
+/** Supabase Storage errors are English and sometimes internal — translate. */
+function storageErrorMessage(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("row-level security") || m.includes("unauthorized")) {
+    return "İcazə yoxdur.";
+  }
+  if (m.includes("maximum allowed size") || m.includes("payload too large")) {
+    return `Fayl ${RESOURCE_PDF_MAX_MB} MB-dan böyük ola bilməz.`;
+  }
+  if (m.includes("mime type")) return "Yalnız PDF faylı yükləmək olar.";
+  return "Fayl yüklənmədi. Yenidən cəhd edin.";
+}
+
+/**
+ * Upload a library PDF into the PRIVATE `resources` bucket and return its
+ * storage path (`<year>/<uuid>.pdf`) — NOT a URL, because there isn't one.
+ *
+ * Uploaded straight from the browser, exactly like blog/exam images, for two
+ * reasons: a Server Action body is capped at 6 MB here (and 4.5 MB on Vercel),
+ * so a 30 MB book physically cannot be proxied through the app; and the bytes
+ * should not make a detour through our server when Storage can take them
+ * directly. The gate that actually stops a non-admin is therefore the RLS policy
+ * on `storage.objects` (`is_admin()`), never this file.
+ *
+ * The object name is a random UUID with a `.pdf` extension derived from the
+ * SNIFFED bytes, so a user-supplied filename never becomes a storage path
+ * (no traversal, no collision, no information leak). The original name is kept
+ * separately in `resources.file_name`, for display only.
+ *
+ * No progress percentage: supabase-js's `upload()` exposes no progress callback,
+ * so the UI shows a determinate-but-unbounded "uploading" state instead of
+ * inventing one.
+ */
+export async function uploadResourcePdf(file: File): Promise<string> {
+  const validationError = validateResourcePdf(file);
+  if (validationError) throw new Error(validationError);
+
+  // "%PDF-" magic bytes. `file.type` comes from the extension on most systems,
+  // so it proves nothing on its own.
+  const head = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+  const isPdf =
+    head.length >= 5 &&
+    head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 &&
+    head[3] === 0x46 && head[4] === 0x2d;
+  if (!isPdf) throw new Error("Fayl həqiqi PDF sənədi deyil.");
+
+  const supabase = createClient();
+  const path = `${new Date().getFullYear()}/${crypto.randomUUID()}.pdf`;
+
+  const { error } = await supabase.storage
+    .from(RESOURCES_BUCKET)
+    .upload(path, file, {
+      contentType: "application/pdf",
+      upsert: false,
+      cacheControl: "3600",
+    });
+  if (error) throw new Error(storageErrorMessage(error.message));
+
+  return path;
 }

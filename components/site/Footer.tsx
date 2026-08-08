@@ -63,6 +63,7 @@ export function Footer() {
             <ColumnHeading>Platforma</ColumnHeading>
             <ul className="space-y-3">
               <FooterLink href="/imtahanlar">İmtahanlar</FooterLink>
+              <FooterLink href="/resurslar">Resurslar</FooterLink>
               <FooterLink href="/bloq">Bloq</FooterLink>
               <FooterLink href="/haqqinda">Haqqında</FooterLink>
             </ul>

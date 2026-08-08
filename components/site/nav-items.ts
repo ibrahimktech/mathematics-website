@@ -9,6 +9,12 @@ export type NavItem = {
 
 export const PRIMARY_NAV: readonly NavItem[] = [
   { href: "/imtahanlar", label: "İmtahanlar" },
+  /**
+   * Shown to everyone on purpose, even though the page itself needs an account:
+   * visitors can't want a library they never see. An anonymous click lands on
+   * `/daxil-ol?redirect=/resurslar` and comes straight back after sign-in.
+   */
+  { href: "/resurslar", label: "Resurslar" },
   {
     href: "/bloq",
     label: "Bloq",
