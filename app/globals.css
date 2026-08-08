@@ -287,8 +287,12 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Hero: very light blue surface with an extremely subtle mathematical-symbol
- * texture. No gradients — a flat tint plus a low-opacity glyph pattern.
+ * Hero (blog landing): a faded photograph over the very light blue surface,
+ * plus the extremely subtle mathematical-symbol texture. No gradients — the
+ * photo is lightened by a single flat opacity, not a scrim, so the dark
+ * heading/body text keeps its contrast everywhere on the image.
+ * Layers, back to front: tint (element background) → photo (::before, z -2)
+ * → glyphs (.hero-pattern, z -1) → content.
  * ------------------------------------------------------------------------- */
 .hero-surface {
   position: relative;
@@ -296,6 +300,25 @@
   border: 1px solid var(--border);
   overflow: hidden;
   isolation: isolate;
+}
+.hero-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: url("/hero-img-ant.jpg");
+  background-position: center 45%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  /* Low enough that #111827 text clears 4.5:1 even over the image's darkest
+     areas, high enough that the illustration still reads. */
+  opacity: 0.4;
+}
+/* A white halo fills in around the glyphs so text never sits directly on a
+   busy edge of the photo. Invisible as an effect on this light surface. */
+.hero-surface h1,
+.hero-surface p {
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.9);
 }
 .hero-pattern {
   position: absolute;

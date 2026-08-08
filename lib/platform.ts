@@ -28,9 +28,9 @@ export const TEACHER = {
 /** Ana səhifə üçün əsas mətnlər. İstədiyiniz kimi dəyişin. */
 export const PLATFORM = {
   eyebrow: "Riyaziyyat təhsil platforması",
-  headline: "RFO Olimpiada Hazırlıq Platforması",
+  headline: "Riyaziyyat fənni üzrə olimpiadalara hazırlıq",
   subheadline:
-    "Diqqətlə hazırlanmış imtahanlar, məsələlər və pulsuz təhsil materialları — məsələ həlli bacarığını inkişaf etdirmək istəyən şagirdlər üçün.",
+    "Devler gibi eserler üretebilmek için, karıncalar gibi çalışmak lazım... (NFK)",
   /** "Necə işləyir?" addımları. */
   steps: [
     {
