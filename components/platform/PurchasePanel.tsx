@@ -182,7 +182,7 @@ export function PurchasePanel({
           )}
         </div>
 
-        <p className="text-muted-foreground mt-4 border-t border-dashed pt-4 text-sm leading-relaxed whitespace-pre-line">
+        <p className="mt-4 border-t border-dashed pt-4 text-sm leading-relaxed whitespace-pre-line font-bold">
           {settings.instructions ||
             "Yuxarıdakı hesaba köçürmə edin, sonra qəbzi aşağıda yükləyin. Ödəniş əl ilə yoxlanılır və təsdiqdən sonra imtahan panelinizdə açılır."}
         </p>
