@@ -22,9 +22,11 @@ import { logSecurityEvent } from "@/lib/security/log";
 import {
   cleanName,
   normalizeEmail,
+  normalizePhone,
   validateEmail,
   validateName,
   validatePassword,
+  validatePhone,
 } from "@/lib/security/password";
 import { safeRedirectPath } from "@/lib/security/redirect";
 import {
@@ -273,6 +275,12 @@ export type SignUpFields = {
   password: string;
   firstName: string;
   lastName: string;
+  /**
+   * Ordinary profile data (+994 + 9 digits), stored next to the names. NOT a
+   * credential: sign-in stays email + password, so this never reaches Supabase
+   * Auth's own `phone` field or its SMS flow.
+   */
+  phone: string;
   /** Turnstile token. Checked for presence here; VERIFIED by Supabase Auth. */
   captchaToken?: string;
 };
@@ -285,13 +293,21 @@ export type SignUpFields = {
 export async function beginSignUp(
   fields: SignUpFields,
 ): Promise<
-  | { ok: true; email: string; firstName: string; lastName: string; fullName: string }
+  | {
+      ok: true;
+      email: string;
+      firstName: string;
+      lastName: string;
+      fullName: string;
+      phone: string;
+    }
   | { ok: false; error: string; retryAfterSeconds?: number }
 > {
   const email = normalizeEmail(String(fields?.email ?? ""));
   const password = String(fields?.password ?? "");
   const firstName = cleanName(String(fields?.firstName ?? ""));
   const lastName = cleanName(String(fields?.lastName ?? ""));
+  const phone = normalizePhone(String(fields?.phone ?? ""));
   const ip = await callerIp();
 
   const emailError = validateEmail(email);
@@ -302,6 +318,9 @@ export async function beginSignUp(
 
   const lastError = validateName(lastName, "Soyad");
   if (lastError) return { ok: false, error: lastError };
+
+  const phoneError = validatePhone(phone);
+  if (phoneError) return { ok: false, error: phoneError };
 
   const passwordError = validatePassword(password, {
     email,
@@ -333,6 +352,7 @@ export async function beginSignUp(
     firstName,
     lastName,
     fullName: `${firstName} ${lastName}`.trim(),
+    phone,
   };
 }
 

@@ -78,6 +78,28 @@ export function validatePassword(
   return null;
 }
 
+/** The only accepted shape: +994 followed by exactly 9 digits. */
+const PHONE_RE = /^\+994\d{9}$/;
+
+/**
+ * Trim + drop the spaces, brackets and hyphens people paste from a contact
+ * card. Only separators are removed — never a digit and never a letter, so
+ * `validatePhone` still sees exactly what was typed.
+ */
+export function normalizePhone(raw: string): string {
+  return raw.trim().replace(/[\s()-]/g, "");
+}
+
+/** Azerbaijani error message, or null when the phone number is acceptable. */
+export function validatePhone(raw: string): string | null {
+  const phone = normalizePhone(raw);
+  if (!phone) return "Telefon nömrəsi tələb olunur.";
+  if (!phone.startsWith("+994")) return "Nömrə +994 ilə başlamalıdır.";
+  if (!PHONE_RE.test(phone))
+    return "Telefon nömrəsi düzgün deyil. Nümunə: +994501234567.";
+  return null;
+}
+
 /** Trim + collapse inner whitespace. For names and other short free text. */
 export function cleanName(raw: string): string {
   return raw.trim().replace(/\s+/g, " ");

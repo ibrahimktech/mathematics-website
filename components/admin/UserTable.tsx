@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import type { AdminUser } from "@/lib/admin/users";
 
-/** Read-only account list with a client-side filter over name / surname / email. */
+/** Read-only account list with a client-side filter over name / surname / email / phone. */
 export function UserTable({ users }: { users: AdminUser[] }) {
   const [query, setQuery] = useState("");
 
@@ -12,7 +12,7 @@ export function UserTable({ users }: { users: AdminUser[] }) {
     const q = query.trim().toLocaleLowerCase("az");
     if (!q) return users;
     return users.filter((u) =>
-      [u.firstName, u.lastName, u.email]
+      [u.firstName, u.lastName, u.email, u.phoneNumber]
         .join(" ")
         .toLocaleLowerCase("az")
         .includes(q),
@@ -27,7 +27,7 @@ export function UserTable({ users }: { users: AdminUser[] }) {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Ad, soyad və ya e-poçt üzrə axtar…"
+          placeholder="Ad, soyad, e-poçt və ya telefon üzrə axtar…"
           aria-label="İstifadəçi axtar"
           className="border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/40 h-10 w-full rounded-md border pr-4 pl-10 text-sm outline-none focus-visible:ring-[3px]"
         />
@@ -47,6 +47,7 @@ export function UserTable({ users }: { users: AdminUser[] }) {
                 <th className="px-4 py-3 font-semibold">Ad</th>
                 <th className="px-4 py-3 font-semibold">Soyad</th>
                 <th className="px-4 py-3 font-semibold">E-poçt</th>
+                <th className="px-4 py-3 font-semibold">Telefon</th>
               </tr>
             </thead>
             <tbody className="divide-border divide-y">
@@ -57,6 +58,9 @@ export function UserTable({ users }: { users: AdminUser[] }) {
                   </td>
                   <td className="text-foreground px-4 py-3">{u.lastName || "—"}</td>
                   <td className="text-muted-foreground px-4 py-3">{u.email || "—"}</td>
+                  <td className="text-muted-foreground px-4 py-3">
+                    {u.phoneNumber || "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>

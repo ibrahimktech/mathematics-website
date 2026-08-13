@@ -14,6 +14,7 @@ import {
   validateEmail,
   validateName,
   validatePassword,
+  validatePhone,
 } from "@/lib/security/password";
 import { safeAbsoluteRedirect, safeRedirectPath } from "@/lib/security/redirect";
 import {
@@ -51,6 +52,31 @@ import { Label } from "@/components/ui/label";
  * the public anon key. Stripping the widget from the DOM therefore does not
  * bypass anything; it just produces the same failure as an invalid token.
  */
+/** Every account number starts here; the field is editable only after it. */
+const PHONE_PREFIX = "+994";
+
+/**
+ * Re-pins "+994" to whatever the field now contains, so the country code cannot
+ * be edited away. The three cases are distinguished deliberately: digits that
+ * merely SURVIVED a delete inside the code ("+99") must not be re-read as the
+ * start of a subscriber number, or backspacing would silently build a different
+ * number instead of restoring the code.
+ */
+function pinCountryCode(input: string): string {
+  // Normal editing: keep the digits after the code, drop everything else.
+  if (input.startsWith(PHONE_PREFIX))
+    return PHONE_PREFIX + input.slice(PHONE_PREFIX.length).replace(/\D/g, "");
+
+  const digits = input.replace(/\D/g, "");
+  // Pasted complete, with or without the "+".
+  if (digits.startsWith("994")) return PHONE_PREFIX + digits.slice(3);
+  // "", "9", "99", "994" — the code itself was edited. Put it back, nothing more.
+  if ("994".startsWith(digits)) return PHONE_PREFIX;
+  // Pasted without the country code; kept so a wrong number shows an error
+  // rather than vanishing.
+  return PHONE_PREFIX + digits;
+}
+
 export function SignUpForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -58,6 +84,7 @@ export function SignUpForm() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState(PHONE_PREFIX);
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const captcha = useTurnstileToken();
@@ -70,6 +97,16 @@ export function SignUpForm() {
     if (user && !loading) navigateAfterAuth(redirect);
   }, [user, loading, redirect]);
 
+  function onPhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const next = pinCountryCode(e.target.value);
+    // When `next` equals the state React last rendered — restoring "+994" after
+    // a backspace, say — React skips the re-render and the raw edit ("+99")
+    // stays on screen while the state says otherwise. Write it back here so the
+    // field and the value being validated can never disagree.
+    if (e.target.value !== next) e.target.value = next;
+    setPhone(next);
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isSupabaseConfigured) {
@@ -81,6 +118,7 @@ export function SignUpForm() {
       validateName(firstName, "Ad") ??
       validateName(lastName, "Soyad") ??
       validateEmail(email) ??
+      validatePhone(phone) ??
       validatePassword(password, {
         email,
         name: `${firstName} ${lastName}`,
@@ -111,6 +149,7 @@ export function SignUpForm() {
       password,
       firstName,
       lastName,
+      phone,
       captchaToken,
     });
     if (!gate.ok) {
@@ -128,6 +167,11 @@ export function SignUpForm() {
           full_name: gate.fullName,
           first_name: gate.firstName,
           last_name: gate.lastName,
+          // Plain profile data, carried into public.profiles by the
+          // handle_new_user trigger. Deliberately NOT the top-level `phone`
+          // argument of signUp(): that one is Supabase's phone-auth field and
+          // would push the account onto the SMS/OTP path. Login is email-only.
+          phone_number: gate.phone,
         },
         // Sibling of `data`, never inside it: anything in `data` is stored as
         // raw_user_meta_data and read by the handle_new_user trigger.
@@ -219,6 +263,19 @@ export function SignUpForm() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="mt-1.5"
+        />
+      </div>
+      <div>
+        <Label htmlFor="phone">Telefon</Label>
+        <Input
+          id="phone"
+          type="tel"
+          autoComplete="tel"
+          required
+          placeholder="+994501234567"
+          value={phone}
+          onChange={onPhoneChange}
           className="mt-1.5"
         />
       </div>

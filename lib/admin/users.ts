@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
  * session client under RLS: the "Admins read all profiles" policy is what makes
  * this return more than the caller's own row, so a non-admin session gets [].
  *
- * Only the three display fields are selected — never auth material (passwords,
+ * Only the four display fields are selected — never auth material (passwords,
  * hashes and tokens live in `auth.users`, which the anon key cannot read at all).
  */
 
@@ -19,6 +19,7 @@ export interface AdminUser {
   firstName: string;
   lastName: string;
   email: string;
+  phoneNumber: string;
 }
 
 /** Older accounts may only have `full_name`; split it as a fallback. */
@@ -34,7 +35,7 @@ export async function getUsersAdmin(): Promise<AdminUser[]> {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, first_name, last_name, full_name, email")
+      .select("id, first_name, last_name, full_name, email, phone_number")
       .order("created_at", { ascending: false });
     if (error) throw error;
 
@@ -44,6 +45,7 @@ export async function getUsersAdmin(): Promise<AdminUser[]> {
       last_name: string | null;
       full_name: string | null;
       email: string | null;
+      phone_number: string | null;
     }[];
 
     return rows.map((r) => {
@@ -53,6 +55,7 @@ export async function getUsersAdmin(): Promise<AdminUser[]> {
         firstName: r.first_name?.trim() || fallbackFirst,
         lastName: r.last_name?.trim() || fallbackLast,
         email: r.email ?? "",
+        phoneNumber: r.phone_number?.trim() || "",
       };
     });
   } catch {
