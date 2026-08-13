@@ -16,7 +16,14 @@ import { cn } from "@/lib/utils";
  */
 export function ExamPurchasePanel({ exam }: { exam: Exam }) {
   const free = exam.price === 0;
-  const target = free ? "/panel/imtahanlar" : `/panel/odenis/${exam.id}`;
+  // Always carry the exam the visitor clicked. Paid exams have a per-exam
+  // checkout page; free ones have none (`/panel/odenis/[id]` bounces price<=0),
+  // so they go to the dashboard list with `?exam=` — the selection the panel
+  // already understands — instead of an anonymous list the student has to
+  // search through for the exam they just chose.
+  const target = free
+    ? `/panel/imtahanlar?exam=${exam.id}`
+    : `/panel/odenis/${exam.id}`;
 
   const features = [
     { icon: ListChecks, label: `${exam.problemCount} sual` },
