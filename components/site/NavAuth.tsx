@@ -7,7 +7,7 @@ import { AccountMenu } from "./AccountMenu";
 /**
  * Right-hand auth control for the desktop navbar. Renders the logged-out state
  * (Daxil ol / Qeydiyyat) by default — which is also what the static HTML ships —
- * and flips to Panel + account menu the instant the session changes, with no
+ * and flips to İmtahanlarım + account menu the instant the session changes, with no
  * page refresh (see `useSessionUser` + browser-client auth).
  */
 export function NavAuth() {
@@ -17,10 +17,10 @@ export function NavAuth() {
     return (
       <div className="flex items-center gap-2">
         <Link
-          href="/panel"
+          href="/panel/imtahanlar"
           className="bg-primary text-primary-foreground hover:bg-primary-hover inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition-colors"
         >
-          Panel
+          İmtahanlarım
         </Link>
         <AccountMenu user={user} />
       </div>

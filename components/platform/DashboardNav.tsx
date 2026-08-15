@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { href: "/panel", label: "İcmal" },
-  { href: "/panel/imtahanlar", label: "İmtahanlar" },
+  { href: "/panel", label: "Ümumi Baxış" },
+  { href: "/panel/imtahanlar", label: "İmtahanlarım" },
   { href: "/panel/neticeler", label: "Nəticələr" },
   { href: "/panel/tenzimleme", label: "Tənzimləmələr" },
 ] as const;

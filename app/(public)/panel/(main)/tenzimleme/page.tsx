@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LogOut } from "lucide-react";
 import { requireUser } from "@/lib/account/auth";
+import { getMyPhoneNumber } from "@/lib/student/queries";
 import { AccountSettings } from "@/components/account/AccountSettings";
 import { SignOutButton } from "@/components/account/SignOutButton";
 
@@ -8,6 +9,7 @@ export const metadata: Metadata = { title: "Tənzimləmələr", robots: { index:
 
 export default async function SettingsPage() {
   const user = await requireUser("/panel/tenzimleme");
+  const initialPhone = await getMyPhoneNumber(user.id);
 
   return (
     <div>
@@ -24,6 +26,7 @@ export default async function SettingsPage() {
         <AccountSettings
           userId={user.id}
           initialName={user.name ?? ""}
+          initialPhone={initialPhone}
           email={user.email ?? ""}
         />
 

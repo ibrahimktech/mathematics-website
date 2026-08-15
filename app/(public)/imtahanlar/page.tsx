@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getExams, getExamTopics } from "@/lib/exams";
-import { ExamCard } from "@/components/platform/ExamCard";
+import { ExamCatalogue } from "@/components/platform/ExamCatalogue";
+import { MyExamsBanner } from "@/components/platform/MyExamsBanner";
 import { cn } from "@/lib/utils";
 
 export const revalidate = 300;
@@ -65,6 +66,8 @@ export default async function ExamsPage({
         </p>
       </header>
 
+      <MyExamsBanner />
+
       <div className="mt-8 flex flex-wrap gap-2">
         <FilterChip href="/imtahanlar" active={!active}>
           Hamısı
@@ -81,11 +84,7 @@ export default async function ExamsPage({
       </div>
 
       {exams.length ? (
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {exams.map((exam, i) => (
-            <ExamCard key={exam.id} exam={exam} index={i % 6} />
-          ))}
-        </div>
+        <ExamCatalogue exams={exams} />
       ) : (
         <div className="border-border text-muted-foreground bg-card mt-10 rounded-2xl border border-dashed p-16 text-center">
           Bu mövzuda hələ imtahan yoxdur.

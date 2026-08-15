@@ -5,8 +5,15 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { PHONE_PREFIX, pinCountryCode } from "@/lib/account/phone";
 import { changePassword } from "@/lib/actions/account";
-import { MIN_PASSWORD_LENGTH, cleanName, validateName } from "@/lib/security/password";
+import {
+  MIN_PASSWORD_LENGTH,
+  cleanName,
+  normalizePhone,
+  validateName,
+  validatePhone,
+} from "@/lib/security/password";
 import {
   TURNSTILE_INCOMPLETE_MESSAGE,
   TURNSTILE_UNAVAILABLE_MESSAGE,
@@ -21,8 +28,10 @@ import { Label } from "@/components/ui/label";
 
 /**
  * Account settings — real, persisted updates via the browser Supabase client
- * (for the logged-in user only). Name updates the auth metadata (drives the UI)
- * and the profiles row (RLS: own row).
+ * (for the logged-in user only). Name and phone update the auth metadata
+ * (drives the UI / mirrors what sign-up stored) and the profiles row (RLS: own
+ * row). Neither is a credential, so like the name the phone needs no Turnstile
+ * or server action — RLS is the boundary.
  *
  * Changing the password REQUIRES the current password. Without that, anyone who
  * gets momentary access to a signed-in session (a shared or stolen browser, an
@@ -39,42 +48,62 @@ import { Label } from "@/components/ui/label";
 export function AccountSettings({
   userId,
   initialName,
+  initialPhone,
   email,
 }: {
   userId: string;
   initialName: string;
+  initialPhone: string;
   email: string;
 }) {
   const router = useRouter();
   const [name, setName] = useState(initialName);
+  const [phone, setPhone] = useState(initialPhone || PHONE_PREFIX);
   const [savingName, setSavingName] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [savingPw, setSavingPw] = useState(false);
   const captcha = useTurnstileToken();
 
-  async function saveName(e: React.FormEvent) {
+  function onPhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const next = pinCountryCode(e.target.value);
+    // When `next` equals the state React last rendered — restoring "+994" after
+    // a backspace, say — React skips the re-render and the raw edit ("+99")
+    // stays on screen while the state says otherwise. Write it back here so the
+    // field and the value being validated can never disagree.
+    if (e.target.value !== next) e.target.value = next;
+    setPhone(next);
+  }
+
+  async function saveInfo(e: React.FormEvent) {
     e.preventDefault();
     const cleaned = cleanName(name);
-    const nameError = validateName(cleaned, "Ad");
-    if (nameError) {
-      toast.error(nameError);
+    const cleanedPhone = normalizePhone(phone);
+    const error0 =
+      validateName(cleaned, "Ad") ?? validatePhone(cleanedPhone);
+    if (error0) {
+      toast.error(error0);
       return;
     }
     setSavingName(true);
     const supabase = createClient();
+    // Same two homes the number has since sign-up: auth metadata + profiles.
     const { error } = await supabase.auth.updateUser({
-      data: { full_name: cleaned },
+      data: { full_name: cleaned, phone_number: cleanedPhone },
     });
     // Keep the profiles row in sync (RLS allows updating one's own row only).
-    await supabase.from("profiles").update({ full_name: cleaned }).eq("id", userId);
+    await supabase
+      .from("profiles")
+      .update({ full_name: cleaned, phone_number: cleanedPhone })
+      .eq("id", userId);
     setSavingName(false);
     if (error) {
       toast.error("Yadda saxlanmadı.");
       return;
     }
     setName(cleaned);
-    toast.success("Ad yeniləndi.");
+    setPhone(cleanedPhone);
+    toast.success("Məlumatlar yeniləndi.");
     router.refresh();
   }
 
@@ -132,13 +161,25 @@ export function AccountSettings({
         <h2 className="font-display text-foreground text-lg font-bold">
           Hesab məlumatı
         </h2>
-        <form onSubmit={saveName} className="mt-4 space-y-4">
+        <form onSubmit={saveInfo} className="mt-4 space-y-4">
           <div>
             <Label htmlFor="s-name">Ad</Label>
             <Input
               id="s-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              className="mt-1.5 max-w-sm"
+            />
+          </div>
+          <div>
+            <Label htmlFor="s-phone">Telefon</Label>
+            <Input
+              id="s-phone"
+              type="tel"
+              autoComplete="tel"
+              value={phone}
+              onChange={onPhoneChange}
+              placeholder="+994501234567"
               className="mt-1.5 max-w-sm"
             />
           </div>

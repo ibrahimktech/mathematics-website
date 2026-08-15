@@ -59,8 +59,8 @@ export default async function HomePage() {
 
       <PlatformHero />
       <StartPracticingBand />
-      <PlatformAbout />
       <ExamsShowcase exams={featuredExams} />
+      <PlatformAbout />
       <HowItWorks />
       <BlogShowcase posts={recentPosts} />
       <TeacherSection />

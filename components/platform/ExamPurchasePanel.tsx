@@ -1,18 +1,19 @@
-import Link from "next/link";
 import { ListChecks, Clock, BarChart3, KeyRound } from "lucide-react";
 import { formatPrice, formatDuration, difficultyLabel } from "@/lib/exams/display";
 import type { Exam } from "@/lib/exams/types";
 import { cn } from "@/lib/utils";
+import { ExamPurchaseCta } from "./ExamPurchaseCta";
 
 /**
  * Exam advertisement + access gateway on the PUBLIC exam page.
  *
- * SERVER component (no client JS): purchases never happen here. The CTA is a
- * plain link into the manual bank-transfer flow (paid) or the dashboard (free).
- * Both targets are under `/panel/*`, which middleware already gates — a
- * logged-out visitor is auto-redirected to login with the target preserved, so
- * we don't need the client session here. Keeping this server-only means the
- * public exam page ships no Supabase browser bundle.
+ * SERVER component: purchases never happen here, and the server markup —
+ * a plain link into the manual bank-transfer flow (paid) or the dashboard
+ * (free), both under middleware-gated `/panel/*` — is what the static HTML and
+ * every signed-out visitor get. The CTA region (`ExamPurchaseCta`) upgrades
+ * client-side when the visitor already owns the exam or has a pending payment,
+ * pointing them at the panel instead. The navbar already ships the Supabase
+ * browser bundle on every page, so that costs no new bundle class.
  */
 export function ExamPurchasePanel({ exam }: { exam: Exam }) {
   const free = exam.price === 0;
@@ -60,22 +61,7 @@ export function ExamPurchasePanel({ exam }: { exam: Exam }) {
         ))}
       </ul>
 
-      <Link
-        href={target}
-        className="bg-primary text-primary-foreground hover:bg-primary-hover mt-6 flex w-full items-center justify-center rounded-full px-5 py-3 text-sm font-semibold shadow-sm transition-all hover:-translate-y-0.5"
-      >
-        {free ? "Başla" : "İmtahanı al"}
-      </Link>
-
-      <p className="text-muted-foreground mt-3 text-center text-xs">
-        Hesabın yoxdur?{" "}
-        <Link
-          href={`/qeydiyyat?redirect=${encodeURIComponent(target)}`}
-          className="text-primary font-semibold"
-        >
-          Qeydiyyatdan keç
-        </Link>
-      </p>
+      <ExamPurchaseCta examId={exam.id} free={free} target={target} />
 
       {!free && (
         <p className="text-muted-foreground mt-4 border-t border-dashed pt-4 text-center text-xs leading-relaxed">

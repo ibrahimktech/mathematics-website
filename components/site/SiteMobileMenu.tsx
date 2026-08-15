@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, X, LayoutDashboard, Settings, LogOut, ShieldCheck } from "lucide-react";
+import { Menu, X, ListChecks, Settings, LogOut, ShieldCheck } from "lucide-react";
 import { useSessionUser } from "@/lib/account/use-user";
 import { SignOutButton } from "@/components/account/SignOutButton";
 import type { NavItem } from "./nav-items";
@@ -70,11 +70,11 @@ export function SiteMobileMenu({ items }: { items: readonly NavItem[] }) {
                     )}
                   </div>
                   <Link
-                    href="/panel"
+                    href="/panel/imtahanlar"
                     onClick={close}
                     className="text-foreground/90 hover:bg-muted flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-base font-medium"
                   >
-                    <LayoutDashboard className="size-4" /> Panel
+                    <ListChecks className="size-4" /> İmtahanlarım
                   </Link>
                   <Link
                     href="/panel/tenzimleme"

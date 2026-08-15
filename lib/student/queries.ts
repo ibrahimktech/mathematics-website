@@ -87,6 +87,27 @@ export async function getMyInProgressAttempt(
 }
 
 /**
+ * The user's phone number from their profiles row. The id filter (server-derived,
+ * from requireUser) matters beyond RLS: admins can SELECT every profile, so a
+ * bare maybeSingle() would error for them on /panel and come back empty.
+ */
+export async function getMyPhoneNumber(userId: string): Promise<string> {
+  if (!isSupabaseConfigured) return "";
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("phone_number")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) return "";
+    return (data?.phone_number as string | null) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
  * A single attempt by id. RLS guarantees the row is returned ONLY if it belongs
  * to the authenticated user — another student's attempt id yields null.
  */

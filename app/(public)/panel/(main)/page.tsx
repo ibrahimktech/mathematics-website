@@ -3,9 +3,13 @@ import Link from "next/link";
 import { ArrowRight, PlayCircle } from "lucide-react";
 import { requireUser } from "@/lib/account/auth";
 import { getExams } from "@/lib/exams";
-import { getMyAttempts, getMyAccessExamIds } from "@/lib/student/queries";
-import { formatDate } from "@/lib/format";
 import {
+  getMyAttempts,
+  getMyAccessExamIds,
+  getMyPurchases,
+} from "@/lib/student/queries";
+import {
+  computeExamState,
   examStatusChipClass,
   examStatusLabel,
 } from "@/lib/student/status";
@@ -26,16 +30,18 @@ function StatTile({ label, value }: { label: string; value: string }) {
 
 export default async function DashboardOverview() {
   const user = await requireUser("/panel");
-  const [exams, accessIds, attempts] = await Promise.all([
+  const [exams, accessIds, purchases, attempts] = await Promise.all([
     getExams(),
     getMyAccessExamIds(),
+    getMyPurchases(),
     getMyAttempts(),
   ]);
-  // "Owned" = free published exams + explicit grants.
-  const ownedCount = new Set([
-    ...accessIds,
-    ...exams.filter((e) => e.price === 0).map((e) => e.id),
-  ]).size;
+  // "Owned" = explicit grants + free exams the student actually started.
+  // An untouched free exam is merely available, not theirs yet.
+  const attemptedIds = new Set(attempts.map((a) => a.exam_id));
+  const ownedExams = exams.filter(
+    (e) => accessIds.has(e.id) || (e.price === 0 && attemptedIds.has(e.id)),
+  );
 
   const examMap = new Map(exams.map((e) => [e.id, e]));
   const completed = attempts.filter((a) => a.status === "completed");
@@ -47,7 +53,6 @@ export default async function DashboardOverview() {
     : null;
 
   const displayName = user.name ?? user.email?.split("@")[0] ?? "tələbə";
-  const recent = attempts.slice(0, 4);
 
   return (
     <div>
@@ -61,7 +66,7 @@ export default async function DashboardOverview() {
       </header>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <StatTile label="Mövcud imtahan" value={String(ownedCount)} />
+        <StatTile label="İmtahanlarım" value={String(ownedExams.length)} />
         <StatTile label="Tamamlanmış cəhd" value={String(completed.length)} />
         <StatTile label="Orta bal" value={avgScore === null ? "—" : `${avgScore}%`} />
       </div>
@@ -88,67 +93,70 @@ export default async function DashboardOverview() {
         </Link>
       )}
 
-      {/* Recent activity */}
+      {/* Owned exams (purchased + started free ones) */}
       <section className="mt-10">
         <div className="flex items-end justify-between">
           <h2 className="font-display text-foreground text-lg font-bold">
-            Son fəaliyyət
+            Sənin imtahanların
           </h2>
           <Link
-            href="/panel/neticeler"
+            href="/panel/imtahanlar"
             className="text-primary hover:text-primary-hover text-sm font-semibold"
           >
             Hamısı
           </Link>
         </div>
 
-        {recent.length ? (
+        {ownedExams.length ? (
           <ul className="border-border mt-4 divide-y rounded-xl border">
-            {recent.map((a) => {
-              const exam = examMap.get(a.exam_id);
+            {ownedExams.map((exam) => {
+              const state = computeExamState(
+                exam.id,
+                exam.price,
+                accessIds,
+                purchases,
+                attempts,
+              );
               return (
                 <li
-                  key={a.id}
+                  key={exam.id}
                   className="flex items-center justify-between gap-4 p-4"
                 >
                   <div className="min-w-0">
                     <p className="text-foreground truncate text-sm font-medium">
-                      {exam?.title ?? a.exam_id}
+                      {exam.title}
                     </p>
-                    <p className="text-muted-foreground text-xs">
-                      {formatDate(a.started_at)}
+                    <p className="mt-1">
+                      <span
+                        className={cn(
+                          "rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                          examStatusChipClass(state.status),
+                        )}
+                      >
+                        {examStatusLabel(state.status)}
+                      </span>
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    {a.status === "completed" ? (
-                      <>
-                        <span className="text-foreground text-sm font-semibold tabular-nums">
-                          {a.score ?? 0}%
-                        </span>
-                        <Link
-                          href={`/panel/netice/${a.id}`}
-                          className="text-primary text-sm font-semibold"
-                        >
-                          Nəticə
-                        </Link>
-                      </>
+                    {state.bestScore !== null && (
+                      <span className="text-foreground text-sm font-semibold tabular-nums">
+                        {state.bestScore}%
+                      </span>
+                    )}
+                    {state.status === "in_progress" ? (
+                      <Link
+                        href={`/panel/imtahan/${exam.id}`}
+                        className="text-primary text-sm font-semibold"
+                      >
+                        Davam et
+                      </Link>
                     ) : (
-                      <>
-                        <span
-                          className={cn(
-                            "rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                            examStatusChipClass("in_progress"),
-                          )}
-                        >
-                          {examStatusLabel("in_progress")}
-                        </span>
-                        <Link
-                          href={`/panel/imtahan/${a.exam_id}`}
-                          className="text-primary text-sm font-semibold"
-                        >
-                          Davam et
-                        </Link>
-                      </>
+                      <Link
+                        href={`/panel/imtahanlar?exam=${exam.id}`}
+                        className="text-primary text-sm font-semibold"
+                      >
+                        Bax
+                      </Link>
                     )}
                   </div>
                 </li>
@@ -157,7 +165,7 @@ export default async function DashboardOverview() {
           </ul>
         ) : (
           <div className="border-border text-muted-foreground mt-4 rounded-xl border border-dashed p-8 text-center text-sm">
-            Hələ fəaliyyət yoxdur.{" "}
+            Hələ imtahanın yoxdur.{" "}
             <Link href="/panel/imtahanlar" className="text-primary font-semibold">
               İmtahanlara bax
             </Link>
