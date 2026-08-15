@@ -41,7 +41,7 @@ export function ExamCard({ exam, index }: { exam: Exam; index?: number }) {
 
         <div className="text-muted-foreground mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
           <span className="inline-flex items-center gap-1.5">
-            <ListChecks className="size-3.5" /> {exam.problemCount} məsələ
+            <ListChecks className="size-3.5" /> {exam.problemCount} sual
           </span>
           <span className="inline-flex items-center gap-1.5">
             <Clock className="size-3.5" /> {formatDuration(exam.durationMinutes)}
