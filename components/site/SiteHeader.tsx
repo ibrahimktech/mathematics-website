@@ -8,6 +8,7 @@ import { SITE } from "@/lib/site";
 import { PRIMARY_NAV, isNavActive } from "./nav-items";
 import { NavAuth } from "./NavAuth";
 import { SiteMobileMenu } from "./SiteMobileMenu";
+import { useSessionUser } from "@/lib/account/use-user";
 
 /**
  * Unified platform navbar, shared by every public page (blog + exam platform)
@@ -17,6 +18,7 @@ import { SiteMobileMenu } from "./SiteMobileMenu";
  */
 export function SiteHeader() {
   const pathname = usePathname();
+  const user = useSessionUser();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -77,7 +79,15 @@ export function SiteHeader() {
           <NavAuth />
         </div>
 
-        <div className="ml-auto md:hidden">
+        <div className="ml-auto flex items-center gap-1.5 md:hidden">
+          {user && (
+            <Link
+              href="/panel/imtahanlar"
+              className="bg-primary text-primary-foreground hover:bg-primary-hover inline-flex items-center rounded-full px-3 py-1.5 text-sm font-semibold whitespace-nowrap shadow-sm transition-colors"
+            >
+              İmtahanlarım
+            </Link>
+          )}
           <SiteMobileMenu items={PRIMARY_NAV} />
         </div>
       </div>
