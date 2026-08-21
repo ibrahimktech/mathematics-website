@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* Both palettes (Verdant = active, Classic = the original blue) — see the file
+   header for how to switch. Must stay with the other `@import`s: CSS requires
+   them to precede every other at-rule. */
+@import "./theme.css";
 
 @plugin "@tailwindcss/typography";
 
@@ -34,6 +38,8 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-soft-hover: var(--surface-soft-hover);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -46,49 +52,11 @@
 }
 
 /*
- * Mathematics Blog palette (from BLOG_SYSTEM_V1_SPEC.md).
- * Light-only, timeless. No gradients, no glassmorphism.
+ * Non-colour design tokens. Every COLOUR the site paints lives in
+ * `app/theme.css`, which ships both palettes — see that file's header.
  */
 :root {
   --radius: 0.5rem;
-
-  --background: #fafbfd; /* App background */
-  --foreground: #111827; /* Primary text */
-
-  --card: #ffffff;
-  --card-foreground: #111827;
-
-  --popover: #ffffff;
-  --popover-foreground: #111827;
-
-  --primary: #2563eb; /* Primary blue */
-  --primary-foreground: #ffffff;
-  --primary-hover: #1d4ed8; /* Hover blue (deeper) */
-
-  --secondary: #f3f4f6;
-  --secondary-foreground: #111827;
-
-  --muted: #f9fafb;
-  --muted-foreground: #6b7280; /* Secondary text */
-
-  --accent: #dbeafe; /* Light blue */
-  --accent-foreground: #1d4ed8;
-
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
-
-  --border: #e5e7eb; /* Borders */
-  --input: #e5e7eb;
-  --ring: #2563eb;
-
-  --sidebar: #ffffff;
-  --sidebar-foreground: #111827;
-  --sidebar-primary: #2563eb;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eff6ff;
-  --sidebar-accent-foreground: #1d4ed8;
-  --sidebar-border: #e5e7eb;
-  --sidebar-ring: #2563eb;
 
   /* Fonts (defined by next/font in app/layout.tsx) */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
@@ -216,7 +184,11 @@
   user-select: none;
   -webkit-user-select: none;
   opacity: 0.07;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='190' height='110' viewBox='0 0 190 110'%3E%3Ctext x='95' y='55' dy='.35em' text-anchor='middle' transform='rotate(-35 95 55)' font-family='Arial, Helvetica, sans-serif' font-size='13' font-weight='700' fill='%23111827'%3Eantgolimpiada.com%3C/text%3E%3C/svg%3E");
+  /* The fill is the one colour in the app that cannot be a variable: it is
+     URL-encoded inside a `data:` URI and CSS has no string interpolation for
+     `url()`. It therefore does NOT follow `data-palette`. At 7% opacity the
+     difference between the two palettes' near-blacks is imperceptible. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='190' height='110' viewBox='0 0 190 110'%3E%3Ctext x='95' y='55' dy='.35em' text-anchor='middle' transform='rotate(-35 95 55)' font-family='Arial, Helvetica, sans-serif' font-size='13' font-weight='700' fill='%231A1F1C'%3Eantgolimpiada.com%3C/text%3E%3C/svg%3E");
   background-repeat: repeat;
   background-position: center;
   /* Tile drawn 20% over its 190x110 intrinsic size. Scaling the TILE (not just
@@ -287,16 +259,16 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Hero (blog landing): a faded photograph over the very light blue surface,
- * plus the extremely subtle mathematical-symbol texture. No gradients — the
- * photo is lightened by a single flat opacity, not a scrim, so the dark
- * heading/body text keeps its contrast everywhere on the image.
+ * Hero (blog landing): a faded photograph over the soft brand surface, plus the
+ * extremely subtle mathematical-symbol texture. No gradients — the photo is
+ * lightened by a single flat opacity, not a scrim, so the dark heading/body text
+ * keeps its contrast everywhere on the image.
  * Layers, back to front: tint (element background) → photo (::before, z -2)
  * → glyphs (.hero-pattern, z -1) → content.
  * ------------------------------------------------------------------------- */
 .hero-surface {
   position: relative;
-  background-color: #eef4ff;
+  background-color: var(--surface-soft);
   border: 1px solid var(--border);
   overflow: hidden;
   isolation: isolate;
@@ -310,7 +282,7 @@
   background-position: center 45%;
   background-size: cover;
   background-repeat: no-repeat;
-  /* Low enough that #111827 text clears 4.5:1 even over the image's darkest
+  /* Low enough that `--foreground` text clears 4.5:1 even over the image's darkest
      areas, high enough that the illustration still reads. */
   opacity: 0.4;
 }
@@ -326,7 +298,7 @@
   z-index: -1;
   pointer-events: none;
   font-family: var(--font-heading);
-  color: #2563eb;
+  color: var(--hero-glyph);
   opacity: 0.05;
   user-select: none;
 }
@@ -346,17 +318,20 @@
 }
 .article-card:hover {
   transform: translateY(-4px);
+  /* Tinted with the brand so the lift follows the palette, matching the
+     `color-mix` already used for the border below. */
   box-shadow:
-    0 1px 2px rgba(16, 24, 40, 0.04),
-    0 12px 28px -8px rgba(37, 99, 235, 0.16);
+    0 1px 2px color-mix(in oklch, var(--foreground) 6%, transparent),
+    0 12px 28px -8px color-mix(in oklch, var(--primary) 18%, transparent);
   border-color: color-mix(in oklch, var(--primary) 35%, var(--border));
 }
 
 /* ---------------------------------------------------------------------------
  * Article list rows: each post sits on its own whisper-soft background tint so
  * adjacent articles read as distinct panels. Light-only, no gradients — a flat
- * near-white wash cycling through six hues (set by `data-tint` on the row).
- * Hover deepens within the same hue.
+ * wash cycling through six hues (set by `data-tint` on the row). Hover deepens
+ * within the same hue. The six pairs themselves live in `app/theme.css` so they
+ * follow the active palette.
  * ------------------------------------------------------------------------- */
 .article-row {
   background-color: var(--row-rest);
@@ -365,12 +340,12 @@
 .article-row:focus-visible {
   background-color: var(--row-hover);
 }
-.article-row[data-tint="0"] { --row-rest: #f3f7fe; --row-hover: #e9f1fd; } /* blue   */
-.article-row[data-tint="1"] { --row-rest: #f7f5fd; --row-hover: #eeeafc; } /* violet */
-.article-row[data-tint="2"] { --row-rest: #eff9f7; --row-hover: #e2f4f1; } /* teal   */
-.article-row[data-tint="3"] { --row-rest: #fefaf0; --row-hover: #fbf2df; } /* amber  */
-.article-row[data-tint="4"] { --row-rest: #fdf5f6; --row-hover: #fbe9ec; } /* rose   */
-.article-row[data-tint="5"] { --row-rest: #f2f9f2; --row-hover: #e7f4e8; } /* green  */
+.article-row[data-tint="0"] { --row-rest: var(--row-0-rest); --row-hover: var(--row-0-hover); }
+.article-row[data-tint="1"] { --row-rest: var(--row-1-rest); --row-hover: var(--row-1-hover); }
+.article-row[data-tint="2"] { --row-rest: var(--row-2-rest); --row-hover: var(--row-2-hover); }
+.article-row[data-tint="3"] { --row-rest: var(--row-3-rest); --row-hover: var(--row-3-hover); }
+.article-row[data-tint="4"] { --row-rest: var(--row-4-rest); --row-hover: var(--row-4-hover); }
+.article-row[data-tint="5"] { --row-rest: var(--row-5-rest); --row-hover: var(--row-5-hover); }
 
 /* ---------------------------------------------------------------------------
  * Article content: mathematics-friendly reading surface.
@@ -388,8 +363,8 @@
 
 /* Code blocks: clean, light, academic (overrides prose's dark default). */
 .prose pre {
-  background-color: #f9fafb;
-  color: #111827;
+  background-color: var(--code-surface);
+  color: var(--foreground);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1rem 1.25rem;
@@ -398,7 +373,7 @@
   line-height: 1.6;
 }
 .prose :not(pre) > code {
-  background-color: #f3f4f6;
+  background-color: var(--code-inline);
   padding: 0.15em 0.4em;
   border-radius: 0.35rem;
   font-weight: 500;
@@ -441,7 +416,7 @@
  * ========================================================================= */
 .latex-article {
   font-family: var(--font-heading);
-  color: #1a1a1a;
+  color: var(--article-text);
   /* Fluid measure: ~15.7px on a phone, 16.8px from tablet up. */
   font-size: clamp(0.98rem, 0.93rem + 0.25vw, 1.05rem);
   line-height: 1.7;
@@ -480,7 +455,7 @@
   margin: 0.2rem 0;
 }
 .latex-date {
-  color: #4b5563;
+  color: var(--article-muted);
   margin-top: 0.2rem;
 }
 
@@ -490,7 +465,7 @@
 .latex-abstract {
   margin: 0 auto 2rem;
   font-size: 0.97rem;
-  color: #374151;
+  color: var(--article-muted-strong);
 }
 @media (min-width: 640px) {
   .latex-abstract {
@@ -540,7 +515,7 @@
   right: 0.25rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #374151;
+  color: var(--article-muted-strong);
 }
 
 /* Theorems & proofs */
@@ -600,7 +575,7 @@
   margin: 0 auto;
 }
 .latex-table td {
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--article-rule);
   padding: 0.4rem 0.85rem;
 }
 .latex-figure {
@@ -613,7 +588,7 @@
   border-radius: 0.25rem;
 }
 .latex-figure figcaption {
-  color: #4b5563;
+  color: var(--article-muted);
   font-size: 0.92rem;
   margin-top: 0.5rem;
 }
@@ -643,11 +618,11 @@
 .latex-quote {
   border-left: 3px solid var(--primary);
   padding-left: 1rem;
-  color: #4b5563;
+  color: var(--article-muted);
   margin: 1rem 0;
 }
 .latex-verbatim {
-  background: #f9fafb;
+  background: var(--code-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1rem 1.25rem;
@@ -660,7 +635,7 @@
 .latex-article :not(pre) > code {
   font-family: var(--font-mono);
   font-size: 0.9em;
-  background: #f3f4f6;
+  background: var(--code-inline);
   padding: 0.1em 0.35em;
   border-radius: 0.3em;
 }
@@ -672,7 +647,7 @@
   height: auto;
 }
 .latex-error {
-  color: #dc2626;
+  color: var(--destructive);
 }
 .latex-fallback {
   white-space: pre-wrap;

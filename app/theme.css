@@ -1,0 +1,166 @@
+/* ===========================================================================
+ * SITE PALETTE — two complete colour sets live in this file.
+ *
+ *   :root                          → "Verdant"  (cream + mint + deep green)  ACTIVE
+ *   :root[data-palette="classic"]  → "Classic"  (the original blue palette)
+ *
+ * `:root[data-palette="classic"]` has specificity (0,1,1) and so beats bare
+ * `:root` (0,1,0). Both blocks are unlayered — exactly like the `:root` block
+ * this file replaced — so override order against Tailwind is unchanged.
+ *
+ * HOW TO GO BACK TO BLUE
+ *   • live A/B, no reload:  document.documentElement.dataset.palette = "classic"
+ *                    back:  delete document.documentElement.dataset.palette
+ *   • permanently:          add data-palette="classic" to <html> in app/layout.tsx
+ *   • completely:           git checkout main
+ *
+ * EVERY colour the site paints is declared here. If something does NOT change
+ * when you flip `data-palette`, that is a hardcoded literal which escaped the
+ * token system — treat it as a bug. (One deliberate exception: the exam
+ * watermark's fill is URL-encoded inside a `data:` URI in globals.css and CSS
+ * cannot interpolate a variable into `url()`. At 7% opacity it is invisible.)
+ * ========================================================================= */
+
+/* ---------------------------------------------------------------------------
+ * VERDANT — warm cream page, pale-mint soft surfaces, deep green brand.
+ *
+ * Contrast (WCAG AA needs 4.5:1 for body text):
+ *   #0F6E56 on #FBFAF6 card ......... 6.2:1
+ *   #0F6E56 on #F1EFE8 background ... 5.5:1
+ *   #0F6E56 on #E4F4EC mint chip .... 5.5:1
+ *   #FFFFFF on #0F6E56 button ....... 6.3:1
+ *   #1A1F1C on #F1EFE8 body text ... 14.5:1
+ *   #666B64 on #F1EFE8 muted text ... 4.8:1
+ * ------------------------------------------------------------------------- */
+:root {
+  --background: #f1efe8; /* App background — warm cream */
+  --foreground: #1a1f1c; /* Primary text — warm near-black */
+
+  --card: #fbfaf6; /* Warm off-white; ~10% lighter than the page */
+  --card-foreground: #1a1f1c;
+
+  --popover: #fbfaf6;
+  --popover-foreground: #1a1f1c;
+
+  --primary: #0f6e56; /* Brand — deep green */
+  --primary-foreground: #ffffff;
+  --primary-hover: #0c5844; /* Hover green (deeper) */
+
+  --secondary: #eae7dc;
+  --secondary-foreground: #1a1f1c;
+
+  --muted: #f6f4ed; /* Mostly a hover wash, not a surface */
+  --muted-foreground: #666b64; /* Secondary text */
+
+  --accent: #e4f4ec; /* Pale mint — taxonomy chips, active nav pill */
+  --accent-foreground: #0c5844;
+
+  --destructive: #dc2626; /* Semantic, deliberately unchanged */
+  --destructive-foreground: #ffffff;
+
+  --border: #dedace; /* Warm hairline */
+  --input: #dedace;
+  --ring: #0f6e56;
+
+  --sidebar: #fbfaf6;
+  --sidebar-foreground: #1a1f1c;
+  --sidebar-primary: #0f6e56;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #edf6f1;
+  --sidebar-accent-foreground: #0c5844;
+  --sidebar-border: #dedace;
+  --sidebar-ring: #0f6e56;
+
+  /* Soft brand panel — the hero surface and the five call-out boxes
+     (FinalCta, MyExamsBanner, RelatedExamCallout, TeacherPortrait, the
+     student dashboard's featured row). */
+  --surface-soft: #e4f4ec;
+  --surface-soft-hover: #d6ede1;
+
+  /* Faint mathematical glyphs behind the blog hero. */
+  --hero-glyph: #0f6e56;
+
+  /* Code surfaces (verbatim blocks + inline <code>). */
+  --code-surface: #f4f2ea;
+  --code-inline: #eae7dc;
+
+  /* The typeset LaTeX article keeps its own slightly warmer greys so the
+     reading column feels like paper rather than UI chrome. */
+  --article-text: #1b201d;
+  --article-muted: #575c55; /* date, figcaption, block quote */
+  --article-muted-strong: #40453e; /* abstract, equation number */
+  --article-rule: #d3cfc2; /* table cell borders */
+
+  /* Blog list rows — six whisper-soft washes so adjacent articles read as
+     distinct panels. Warm siblings of the cream page, cycled by `data-tint`. */
+  --row-0-rest: #e7f1ea;  --row-0-hover: #dcebe1; /* green */
+  --row-1-rest: #eef0e5;  --row-1-hover: #e5e9d9; /* olive */
+  --row-2-rest: #f5f1e4;  --row-2-hover: #efe9d6; /* sand  */
+  --row-3-rest: #f6eee7;  --row-3-hover: #f0e4d9; /* clay  */
+  --row-4-rest: #efeeea;  --row-4-hover: #e6e4de; /* stone */
+  --row-5-rest: #e8f1f0;  --row-5-hover: #dceae8; /* teal  */
+}
+
+/* ---------------------------------------------------------------------------
+ * CLASSIC — the original palette from BLOG_SYSTEM_V1_SPEC.md, byte-for-byte.
+ * Light-only, timeless. No gradients, no glassmorphism.
+ * ------------------------------------------------------------------------- */
+:root[data-palette="classic"] {
+  --background: #fafbfd; /* App background */
+  --foreground: #111827; /* Primary text */
+
+  --card: #ffffff;
+  --card-foreground: #111827;
+
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+
+  --primary: #2563eb; /* Primary blue */
+  --primary-foreground: #ffffff;
+  --primary-hover: #1d4ed8; /* Hover blue (deeper) */
+
+  --secondary: #f3f4f6;
+  --secondary-foreground: #111827;
+
+  --muted: #f9fafb;
+  --muted-foreground: #6b7280; /* Secondary text */
+
+  --accent: #dbeafe; /* Light blue */
+  --accent-foreground: #1d4ed8;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --border: #e5e7eb; /* Borders */
+  --input: #e5e7eb;
+  --ring: #2563eb;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eff6ff;
+  --sidebar-accent-foreground: #1d4ed8;
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #2563eb;
+
+  --surface-soft: #eef4ff;
+  --surface-soft-hover: #e6efff;
+
+  --hero-glyph: #2563eb;
+
+  --code-surface: #f9fafb;
+  --code-inline: #f3f4f6;
+
+  --article-text: #1a1a1a;
+  --article-muted: #4b5563;
+  --article-muted-strong: #374151;
+  --article-rule: #d1d5db;
+
+  --row-0-rest: #f3f7fe;  --row-0-hover: #e9f1fd; /* blue   */
+  --row-1-rest: #f7f5fd;  --row-1-hover: #eeeafc; /* violet */
+  --row-2-rest: #eff9f7;  --row-2-hover: #e2f4f1; /* teal   */
+  --row-3-rest: #fefaf0;  --row-3-hover: #fbf2df; /* amber  */
+  --row-4-rest: #fdf5f6;  --row-4-hover: #fbe9ec; /* rose   */
+  --row-5-rest: #f2f9f2;  --row-5-hover: #e7f4e8; /* green  */
+}

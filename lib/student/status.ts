@@ -139,7 +139,10 @@ export function examStatusChipClass(s: ExamStatus): string {
     case "completed":
       return "bg-emerald-50 text-emerald-700";
     case "exhausted":
-      return "bg-slate-100 text-slate-600";
+      /* Deliberately the faintest chip of the set — a spent, terminal state.
+         Lighter fill + dimmer text than `available`, so the two neutrals still
+         read apart. */
+      return "bg-muted text-muted-foreground/70";
   }
 }
 

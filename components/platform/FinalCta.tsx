@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 export function FinalCta() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:py-24">
-      <div className="border-primary/15 rounded-3xl border bg-[#eef4ff] px-6 py-14 text-center sm:px-12 sm:py-16">
+      <div className="border-primary/15 bg-surface-soft rounded-3xl border px-6 py-14 text-center sm:px-12 sm:py-16">
         <h2 className="font-display text-foreground mx-auto max-w-2xl text-3xl font-bold tracking-tight text-balance sm:text-4xl">
           Riyaziyyatını sınamağa hazırsan?
         </h2>

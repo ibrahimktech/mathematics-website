@@ -12,7 +12,7 @@ import { useSessionUser } from "@/lib/account/use-user";
 
 /**
  * Unified platform navbar, shared by every public page (blog + exam platform)
- * so the two halves read as one brand. Flat white bar that gains a hairline
+ * so the two halves read as one brand. Flat `--card` bar that gains a hairline
  * border + soft shadow once scrolled. Session-aware auth controls (see NavAuth)
  * render on the client so the surrounding pages stay statically rendered.
  */
@@ -31,7 +31,7 @@ export function SiteHeader() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 bg-white transition-shadow duration-300",
+        "bg-card sticky top-0 z-40 transition-shadow duration-300",
         scrolled
           ? "border-border border-b shadow-[0_1px_3px_rgba(16,24,40,0.06),0_8px_24px_-16px_rgba(16,24,40,0.18)]"
           : "border-b border-transparent",

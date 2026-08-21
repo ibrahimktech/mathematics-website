@@ -68,7 +68,7 @@ export function ExamCard({ exam, index }: { exam: Exam; index?: number }) {
           <span
             className={cn(
               "text-sm font-bold",
-              free ? "text-emerald-600" : "text-foreground",
+              free ? "text-primary" : "text-foreground",
             )}
           >
             {formatPrice(exam.price, exam.currency)}

@@ -34,7 +34,7 @@ export function TeacherPortrait({
           className="object-cover"
         />
       ) : (
-        <div className="absolute inset-0 grid place-items-center bg-[#eef4ff] p-6 text-center">
+        <div className="bg-surface-soft absolute inset-0 grid place-items-center p-6 text-center">
           <div>
             <div className="border-primary/20 bg-card/70 text-primary/60 mx-auto grid size-20 place-items-center rounded-2xl border">
               <GraduationCap className="size-9" />

@@ -127,7 +127,7 @@ export function DashboardExamList({
                     <span className="inline-flex items-center gap-1.5">
                       <Clock className="size-3.5" /> {formatDuration(exam.durationMinutes)}
                     </span>
-                    <span className={exam.price === 0 ? "font-semibold text-emerald-600" : ""}>
+                    <span className={exam.price === 0 ? "text-primary font-semibold" : ""}>
                       {formatPrice(exam.price, exam.currency)}
                     </span>
                     {state.bestScore !== null && (

@@ -39,7 +39,7 @@ export function ExamPurchasePanel({ exam }: { exam: Exam }) {
         <span
           className={cn(
             "exam-title text-3xl font-bold",
-            free ? "text-emerald-600" : "text-foreground",
+            free ? "text-primary" : "text-foreground",
           )}
         >
           {formatPrice(exam.price, exam.currency)}

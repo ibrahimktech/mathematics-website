@@ -14,7 +14,7 @@ export function RelatedExamCallout({
   topic: string;
 }) {
   return (
-    <aside className="border-primary/15 mt-12 flex flex-col gap-4 rounded-2xl border bg-[#eef4ff] p-6 sm:flex-row sm:items-center sm:justify-between">
+    <aside className="border-primary/15 bg-surface-soft mt-12 flex flex-col gap-4 rounded-2xl border p-6 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-3">
         <span className="border-primary/15 bg-card text-primary grid size-10 shrink-0 place-items-center rounded-xl border">
           <Target className="size-5" />

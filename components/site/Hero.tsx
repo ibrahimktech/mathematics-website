@@ -42,8 +42,9 @@ export function Hero() {
           Riyaziyyatın gözəlliyini kəşf et
         </h1>
 
-        {/* Darker than `text-muted-foreground`: grey #6b7280 only reaches ~1.7:1
-            over the darkest parts of the photo backdrop; this clears 4.5:1. */}
+        {/* Deliberately NOT `text-muted-foreground`: that grey only reaches
+            ~1.7:1 over the darkest parts of the photo backdrop. This clears
+            4.5:1. */}
         <p className="text-foreground/85 mx-auto mt-6 max-w-2xl text-base leading-relaxed text-pretty sm:text-lg">
           Zərif isbatlar, olimpiada həlləri və riyazi ideyalar — həndəsə,
           cəbr və ədədlər nəzəriyyəsinə dərin baxışlar.

@@ -134,7 +134,7 @@ export function LineChart({
               strokeDasharray="3 3"
               vectorEffect="non-scaling-stroke"
             />
-            <circle cx={x(hi)} cy={y(values[hi])} r={4} fill="var(--primary)" stroke="#fff" strokeWidth={2} />
+            <circle cx={x(hi)} cy={y(values[hi])} r={4} fill="var(--primary)" stroke="var(--card)" strokeWidth={2} />
           </>
         )}
       </svg>

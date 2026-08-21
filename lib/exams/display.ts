@@ -21,17 +21,24 @@ export const DIFFICULTY_OPTIONS: { value: ExamDifficulty; label: string }[] = (
   Object.keys(DIFFICULTY_LABELS) as ExamDifficulty[]
 ).map((value) => ({ value, label: DIFFICULTY_LABELS[value] }));
 
-/** Tailwind classes for the difficulty chip — restrained, palette-aligned. */
+/**
+ * Tailwind classes for the difficulty chip — restrained, palette-aligned.
+ *
+ * A true severity ramp (calm green → amber → orange → red), not four arbitrary
+ * hues: the chip sits next to the mint `bg-accent` topic chip on every exam
+ * card, so a cool blue step would read as a leftover from the old palette and a
+ * second green would read as a near-miss of the brand.
+ */
 export function difficultyChipClass(d: ExamDifficulty): string {
   switch (d) {
     case "beginner":
       return "bg-emerald-50 text-emerald-700";
     case "intermediate":
-      return "bg-sky-50 text-sky-700";
-    case "advanced":
       return "bg-amber-50 text-amber-700";
+    case "advanced":
+      return "bg-orange-50 text-orange-700";
     case "olympiad":
-      return "bg-violet-50 text-violet-700";
+      return "bg-rose-50 text-rose-700";
     default:
       return "bg-secondary text-muted-foreground";
   }

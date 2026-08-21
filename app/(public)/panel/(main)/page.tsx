@@ -74,7 +74,7 @@ export default async function DashboardOverview() {
       {inProgress && examMap.get(inProgress.exam_id) && (
         <Link
           href={`/panel/imtahan/${inProgress.exam_id}`}
-          className="border-primary/20 mt-6 flex items-center justify-between gap-4 rounded-xl border bg-[#eef4ff] p-5 transition-colors hover:bg-[#e6efff]"
+          className="border-primary/20 bg-surface-soft hover:bg-surface-soft-hover mt-6 flex items-center justify-between gap-4 rounded-xl border p-5 transition-colors"
         >
           <div className="flex items-center gap-3">
             <PlayCircle className="text-primary size-6 shrink-0" />
