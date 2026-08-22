@@ -42,6 +42,62 @@ function Modal({
 }
 
 /**
+ * The countdown pill, isolated so its once-a-second `setState` re-renders only
+ * the timer instead of the whole runner. The question below is LaTeX rendered
+ * through `Tex`, and re-rendering that used to reassign `innerHTML` and wipe
+ * the horizontal scroll position of a wide formula — `Tex` is memoised so it
+ * cannot any more, but the clock still has no business re-rendering the
+ * question, the palette and every answer choice sixty times a minute.
+ *
+ * `onExpire` is read through a ref so a new function identity can never restart
+ * the interval; the deadline alone may.
+ */
+function Countdown({
+  deadline,
+  onExpire,
+}: {
+  deadline: number;
+  onExpire: () => void;
+}) {
+  const [remaining, setRemaining] = useState(() =>
+    Math.max(0, Math.round((deadline - Date.now()) / 1000)),
+  );
+  const expireRef = useRef(onExpire);
+  useEffect(() => {
+    expireRef.current = onExpire;
+  }, [onExpire]);
+
+  // Auto-submit at zero.
+  useEffect(() => {
+    const t = setInterval(() => {
+      const left = Math.max(0, Math.round((deadline - Date.now()) / 1000));
+      setRemaining(left);
+      if (left <= 0) {
+        clearInterval(t);
+        expireRef.current();
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [deadline]);
+
+  const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
+  const ss = String(remaining % 60).padStart(2, "0");
+  const low = remaining <= 60;
+
+  return (
+    <div
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold tabular-nums",
+        low ? "bg-destructive/10 text-destructive" : "bg-secondary text-foreground",
+      )}
+      aria-live="polite"
+    >
+      <Clock className="size-4" /> {mm}:{ss}
+    </div>
+  );
+}
+
+/**
  * The exam-taking interface. Clean sans-serif (inside `.app-ui`), one question
  * per view with a question palette, a countdown timer (auto-submits at zero),
  * and server-side grading on submit. Fully responsive: the palette wraps and the
@@ -101,9 +157,6 @@ export function ExamRunner({
     () => new Date(startedAt).getTime() + durationMinutes * 60_000,
     [startedAt, durationMinutes],
   );
-  const [remaining, setRemaining] = useState(() =>
-    Math.max(0, Math.round((deadline - Date.now()) / 1000)),
-  );
 
   /** Persist the current answers without submitting. Silent by design. */
   const save = useCallback(
@@ -142,19 +195,6 @@ export function ExamRunner({
     }
     router.push(`/panel/netice/${attemptId}`);
   }, [attemptId, router]);
-
-  // Countdown; auto-submit at zero.
-  useEffect(() => {
-    const t = setInterval(() => {
-      const left = Math.max(0, Math.round((deadline - Date.now()) / 1000));
-      setRemaining(left);
-      if (left <= 0) {
-        clearInterval(t);
-        void doSubmit();
-      }
-    }, 1000);
-    return () => clearInterval(t);
-  }, [deadline, doSubmit]);
 
   // --- Autosave: debounced on change, plus a periodic safety net. -----------
   useEffect(() => {
@@ -300,9 +340,6 @@ export function ExamRunner({
 
   const answeredCount = Object.keys(answers).length;
   const q = questions[current];
-  const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
-  const ss = String(remaining % 60).padStart(2, "0");
-  const low = remaining <= 60;
 
   function select(choice: number) {
     setAnswers((a) => ({ ...a, [q.id]: choice }));
@@ -315,15 +352,7 @@ export function ExamRunner({
         <p className="text-foreground truncate text-sm font-semibold">
           {examTitle}
         </p>
-        <div
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold tabular-nums",
-            low ? "bg-destructive/10 text-destructive" : "bg-secondary text-foreground",
-          )}
-          aria-live="polite"
-        >
-          <Clock className="size-4" /> {mm}:{ss}
-        </div>
+        <Countdown deadline={deadline} onExpire={doSubmit} />
       </div>
 
       {/* Leaving-the-page notice: the rule, stated before it is needed. */}

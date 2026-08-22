@@ -74,7 +74,15 @@ with `_` — underscore = Next private folder = 404).
   commands render their arg, unknown envs render their body, KaTeX
   `throwOnError:false`). `components/site/LatexContent.tsx` has **no `"use client"`**
   — server-rendered on article pages (minimal JS) and reused in the client editor's
-  **deferred** preview (`useDeferredValue`), so preview == published output. Styling:
+  **deferred** preview (`useDeferredValue`), so preview == published output.
+  It and `components/platform/Tex.tsx` are wrapped in **`React.memo`, which is
+  load-bearing, not an optimisation**: React 19 compares `dangerouslySetInnerHTML`
+  by REFERENCE, never by string, so an unmemoised re-render reassigns `innerHTML`
+  and replaces every child node even when the markup is identical — destroying the
+  `overflow-x` box around wide display math (`.latex-eq`/`.katex-display`) and
+  snapping its `scrollLeft` back to 0. Don't unwrap them and keep their props
+  primitive. Relatedly, the exam runner's clock lives in its own `Countdown`
+  component so a tick re-renders the timer, not the question. Styling:
   `.latex-article` in `app/globals.css`. Output goes through `dangerouslySetInnerHTML`;
   the transpiler escapes all text nodes and sanitizes URLs.
 - **shadcn is Base UI, not Radix:** `Button` has **no `asChild`**. For a link that
