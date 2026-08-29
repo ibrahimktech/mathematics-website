@@ -24,6 +24,7 @@ export function TeacherSection() {
               {TEACHER.bio.map((paragraph, i) => (
                 <p key={i}>{paragraph}</p>
               ))}
+              <p className="font-semibold">Camal müəllimlə əlaqə saxlamaq üçün, +994 99 864 35 37 və ya +994 70 864 35 37 nömrələri ilə əlaqə saxlaya bilərsiniz.</p>
             </div>
           </div>
         </div>
