@@ -64,6 +64,9 @@ export default function AboutPage() {
           oxunaqlılıqla. İmtahanlar isə öyrəndiklərini praktikada tətbiq etmək
           üçündür.
         </p>
+        <p>
+          ANTG Olimpiada saytındakı testlər, bloqlar və imtahanlar Camal Qədirov tərəfindən hazırlanır. Web saytın texniki tərəfi, yəni proqramlaşdırılması isə İbrahim Kərimov tərəfindən idarə olunur.
+        </p>
       </div>
 
       <h2 className="font-display text-foreground mt-14 text-2xl font-bold tracking-tight">

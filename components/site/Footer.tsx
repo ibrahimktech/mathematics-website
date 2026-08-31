@@ -3,10 +3,10 @@ import { Rss } from "lucide-react";
 import { SITE } from "@/lib/site";
 
 /** GitHub mark (lucide removed brand icons, so we inline it). */
-function GithubIcon({ className }: { className?: string }) {
+function InstagramIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
-      <path d="M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.87.12 3.17.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.49 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12.01 12.01 0 0 0 24 12.5C24 5.87 18.63.5 12 .5Z" />
+      <path d="M7.5 2h9A5.5 5.5 0 0 1 22 7.5v9a5.5 5.5 0 0 1-5.5 5.5h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2Zm0 2A3.5 3.5 0 0 0 4 7.5v9A3.5 3.5 0 0 0 7.5 20h9a3.5 3.5 0 0 0 3.5-3.5v-9A3.5 3.5 0 0 0 16.5 4h-9ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm5.25-3.25a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5Z" />
     </svg>
   );
 }
@@ -33,7 +33,7 @@ function FooterLink({ href, children }: { href: string; children: React.ReactNod
 }
 
 export function Footer() {
-  const { github, email } = SITE.links;
+  const { instagram_teacher, instagram_developer } = SITE.links;
 
   return (
     <footer className="border-border bg-card mt-24 border-t">
@@ -91,25 +91,27 @@ export function Footer() {
                   <Rss className="size-4" /> RSS
                 </a>
               </li>
-              {github && (
+              {instagram_teacher && (
                 <li>
                   <a
-                    href={github}
+                    href={instagram_teacher}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-muted-foreground hover:text-primary inline-flex items-center gap-2 text-sm transition-colors"
+                    className="text-muted-foreground hover:text-primary text-sm transition-colors flex gap-1 items-center"
                   >
-                    <GithubIcon className="size-4" /> GitHub
+                    <InstagramIcon className="size-4" /> Camal Qədirov - müəllim
                   </a>
                 </li>
               )}
-              {email && (
+              {instagram_developer && (
                 <li>
                   <a
-                    href={`mailto:${email}`}
-                    className="text-muted-foreground hover:text-primary text-sm transition-colors"
+                    href={instagram_developer}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-muted-foreground hover:text-primary text-sm transition-colors flex gap-1.5 items-center"
                   >
-                    Əlaqə
+                    <InstagramIcon className="size-4" /> İbrahim Kərimov
                   </a>
                 </li>
               )}

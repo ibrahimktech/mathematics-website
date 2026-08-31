@@ -17,8 +17,10 @@ export const SITE = {
    * hide that link. Fill these in to point at your own profiles.
    */
   links: {
-    github: "",
-    email: "",
+    github: "https://github.com/ibrahimktech",
+    email: "ibrahimkarimov@hotmail.com",
+    instagram_teacher: "https://www.instagram.com/antg_olimpiada_haz/",
+    instagram_developer: "https://www.instagram.com/ibrahimk.tech/",
   },
 } as const;
 
