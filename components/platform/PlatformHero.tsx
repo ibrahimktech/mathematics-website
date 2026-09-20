@@ -2,36 +2,53 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { PLATFORM } from "@/lib/platform";
 
+/** Keep the homepage backdrop in step with the blog hero's math texture. */
+const GLYPHS = [
+  { c: "π", top: "12%", left: "6%", size: "5.5rem", rotate: "-8deg" },
+  { c: "∫", top: "44%", left: "16%", size: "7rem", rotate: "6deg" },
+  { c: "Σ", top: "68%", left: "8%", size: "4.5rem", rotate: "-4deg" },
+  { c: "∞", top: "20%", left: "40%", size: "4rem", rotate: "10deg" },
+  { c: "√", top: "60%", left: "48%", size: "5rem", rotate: "-6deg" },
+  { c: "∂", top: "14%", left: "72%", size: "5rem", rotate: "8deg" },
+  { c: "Σ", top: "52%", left: "82%", size: "6rem", rotate: "-10deg" },
+  { c: "π", top: "74%", left: "68%", size: "4.5rem", rotate: "4deg" },
+  { c: "∞", top: "82%", left: "90%", size: "3.5rem", rotate: "-8deg" },
+];
+
 /** Homepage hero: a single centred column of copy + CTAs. */
 export function PlatformHero() {
   return (
-    <section className="relative isolate mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
-      {/* Faint photographic backdrop. `isolate` on the section is required: a
-          -z-10 child in a stacking context that does not exist would paint
-          behind the body background and vanish. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 rounded-3xl bg-cover bg-no-repeat opacity-[0.23]"
-        style={{
-          backgroundImage: 'url("/hero-img-ant.jpg")',
-          backgroundPosition: "center 45%",
-        }}
-      />
+    <section className="mx-auto max-w-6xl px-4 pt-8 sm:px-6 sm:pt-10">
+      <div className="hero-surface animate-fade-rise rounded-3xl px-6 py-16 text-center sm:px-12 sm:py-20 lg:py-24">
+        <div className="hero-pattern" aria-hidden>
+          {GLYPHS.map((glyph, index) => (
+            <span
+              key={index}
+              style={{
+                top: glyph.top,
+                left: glyph.left,
+                fontSize: glyph.size,
+                transform: `rotate(${glyph.rotate})`,
+              }}
+            >
+              {glyph.c}
+            </span>
+          ))}
+        </div>
 
-      <div className="animate-fade-rise mx-auto max-w-3xl text-center">
-        <span className="border-primary/20 bg-accent/40 text-primary inline-flex items-center rounded-full border px-3.5 py-1.5 text-xs font-semibold tracking-wide">
+        <span className="border-primary/20 bg-card text-primary inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold tracking-wide">
           {PLATFORM.eyebrow}
         </span>
 
-        <h1 className="font-display text-foreground mt-6 text-4xl leading-[1.08] font-bold tracking-tight text-balance sm:text-5xl lg:text-[3.35rem]">
+        <h1 className="font-display text-foreground mx-auto mt-6 max-w-3xl text-4xl leading-[1.1] font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
           {PLATFORM.headline}
         </h1>
 
-        <p className=" italic mx-auto mt-6 max-w-xl text-base leading-relaxed text-pretty sm:text-lg">
+        <p className="text-foreground/85 mx-auto mt-6 max-w-2xl text-base leading-relaxed text-pretty sm:text-lg">
           {PLATFORM.subheadline}
         </p>
 
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/imtahanlar"
             className="bg-primary text-primary-foreground hover:bg-primary-hover inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
