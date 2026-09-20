@@ -91,14 +91,9 @@
   --article-muted-strong: #40453e; /* abstract, equation number */
   --article-rule: #d3cfc2; /* table cell borders */
 
-  /* Blog list rows — six whisper-soft washes so adjacent articles read as
-     distinct panels. Warm siblings of the cream page, cycled by `data-tint`. */
-  --row-0-rest: #e7f1ea;  --row-0-hover: #dcebe1; /* green */
-  --row-1-rest: #eef0e5;  --row-1-hover: #e5e9d9; /* olive */
-  --row-2-rest: #f5f1e4;  --row-2-hover: #efe9d6; /* sand  */
-  --row-3-rest: #f6eee7;  --row-3-hover: #f0e4d9; /* clay  */
-  --row-4-rest: #efeeea;  --row-4-hover: #e6e4de; /* stone */
-  --row-5-rest: #e8f1f0;  --row-5-hover: #dceae8; /* teal  */
+  /* Opaque article cards, separated from the cream page by a visible border. */
+  --article-card-surface: #ffffff;
+  --article-card-border: #c6ccbf;
 }
 
 /* ---------------------------------------------------------------------------
@@ -157,10 +152,6 @@
   --article-muted-strong: #374151;
   --article-rule: #d1d5db;
 
-  --row-0-rest: #f3f7fe;  --row-0-hover: #e9f1fd; /* blue   */
-  --row-1-rest: #f7f5fd;  --row-1-hover: #eeeafc; /* violet */
-  --row-2-rest: #eff9f7;  --row-2-hover: #e2f4f1; /* teal   */
-  --row-3-rest: #fefaf0;  --row-3-hover: #fbf2df; /* amber  */
-  --row-4-rest: #fdf5f6;  --row-4-hover: #fbe9ec; /* rose   */
-  --row-5-rest: #f2f9f2;  --row-5-hover: #e7f4e8; /* green  */
+  --article-card-surface: #ffffff;
+  --article-card-border: #cbd5e1;
 }

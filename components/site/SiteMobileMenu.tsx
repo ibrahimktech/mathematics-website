@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Menu, X, ListChecks, Settings, LogOut, ShieldCheck } from "lucide-react";
 import { useSessionUser } from "@/lib/account/use-user";
 import { SignOutButton } from "@/components/account/SignOutButton";
-import type { NavItem } from "./nav-items";
+import { isNavActive, type NavItem } from "./nav-items";
 
 /** Responsive drawer for the platform navbar (mobile / tablet). */
 export function SiteMobileMenu({ items }: { items: readonly NavItem[] }) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
   const user = useSessionUser();
   const close = () => setOpen(false);
 
@@ -44,16 +46,24 @@ export function SiteMobileMenu({ items }: { items: readonly NavItem[] }) {
             </div>
 
             <nav className="flex flex-col gap-1">
-              {items.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={close}
-                  className="text-foreground/90 hover:bg-accent hover:text-primary rounded-xl px-3 py-2.5 text-base font-medium transition-colors"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {items.map((item) => {
+                const active = isNavActive(item, pathname);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    onClick={close}
+                    className={
+                      active
+                        ? "bg-accent text-primary rounded-xl px-3 py-2.5 text-base font-semibold transition-colors"
+                        : "text-foreground/90 hover:bg-accent hover:text-primary rounded-xl px-3 py-2.5 text-base font-medium transition-colors"
+                    }
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
             </nav>
 
             <div className="border-border mt-auto border-t pt-6">

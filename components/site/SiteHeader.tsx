@@ -54,7 +54,7 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <nav className="ml-2 hidden items-center gap-1 md:flex">
+        <nav className="ml-2 hidden items-center gap-1 lg:flex">
           {PRIMARY_NAV.map((item) => {
             const active = isNavActive(item, pathname);
             return (
@@ -75,11 +75,11 @@ export function SiteHeader() {
           })}
         </nav>
 
-        <div className="ml-auto hidden md:block">
+        <div className="ml-auto hidden lg:block">
           <NavAuth />
         </div>
 
-        <div className="ml-auto flex items-center gap-1.5 md:hidden">
+        <div className="ml-auto flex items-center gap-1.5 lg:hidden">
           {user && (
             <Link
               href="/panel/imtahanlar"

@@ -5,6 +5,8 @@ export type NavItem = {
   label: string;
   /** Extra path prefixes that should also mark this item active. */
   also?: string[];
+  /** Path prefixes owned by a more specific navigation item. */
+  exclude?: string[];
 };
 
 export const PRIMARY_NAV: readonly NavItem[] = [
@@ -19,12 +21,19 @@ export const PRIMARY_NAV: readonly NavItem[] = [
     href: "/bloq",
     label: "Bloq",
     also: ["/meqale", "/kateqoriya", "/axtar"],
+    exclude: ["/kateqoriya/final-suallari"],
   },
+  { href: "/kateqoriya/final-suallari", label: "Final Sualları" },
   { href: "/haqqinda", label: "Haqqında" },
 ];
 
 /** Whether `pathname` should mark `item` as the active nav entry. */
 export function isNavActive(item: NavItem, pathname: string): boolean {
+  const isExcluded = (item.exclude ?? []).some(
+    (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
+  if (isExcluded) return false;
+
   if (pathname === item.href) return true;
   if (pathname.startsWith(item.href + "/")) return true;
   return (item.also ?? []).some(

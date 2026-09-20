@@ -327,25 +327,29 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Article list rows: each post sits on its own whisper-soft background tint so
- * adjacent articles read as distinct panels. Light-only, no gradients — a flat
- * wash cycling through six hues (set by `data-tint` on the row). Hover deepens
- * within the same hue. The six pairs themselves live in `app/theme.css` so they
- * follow the active palette.
+ * Article list cards: opaque paper surfaces, defined borders and a brand edge.
+ * Keep hover and keyboard focus visible without changing the reading surface.
  * ------------------------------------------------------------------------- */
 .article-row {
-  background-color: var(--row-rest);
+  background-color: var(--article-card-surface);
+  border: 1px solid var(--article-card-border);
+  border-inline-start: 4px solid var(--primary);
+  box-shadow:
+    0 1px 3px color-mix(in oklch, var(--foreground) 6%, transparent),
+    0 4px 14px -6px color-mix(in oklch, var(--foreground) 12%, transparent);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 .article-row:hover,
 .article-row:focus-visible {
-  background-color: var(--row-hover);
+  border-color: var(--primary);
+  box-shadow:
+    0 2px 4px color-mix(in oklch, var(--foreground) 8%, transparent),
+    0 8px 20px -8px color-mix(in oklch, var(--primary) 20%, transparent);
 }
-.article-row[data-tint="0"] { --row-rest: var(--row-0-rest); --row-hover: var(--row-0-hover); }
-.article-row[data-tint="1"] { --row-rest: var(--row-1-rest); --row-hover: var(--row-1-hover); }
-.article-row[data-tint="2"] { --row-rest: var(--row-2-rest); --row-hover: var(--row-2-hover); }
-.article-row[data-tint="3"] { --row-rest: var(--row-3-rest); --row-hover: var(--row-3-hover); }
-.article-row[data-tint="4"] { --row-rest: var(--row-4-rest); --row-hover: var(--row-4-hover); }
-.article-row[data-tint="5"] { --row-rest: var(--row-5-rest); --row-hover: var(--row-5-hover); }
+.article-row:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 4px;
+}
 
 /* ---------------------------------------------------------------------------
  * Article content: mathematics-friendly reading surface.
